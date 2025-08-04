@@ -3,6 +3,9 @@
     "@line/bot-sdk": "^10.0.0",
     "@sparticuz/chromium-min": "^138.0.2",
     "googleapis": "^154.1.0",
-    "playwright": "^1.54.2"
+    "next": "^15.4.5",
+    "playwright": "^1.54.2",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
   }
 }
