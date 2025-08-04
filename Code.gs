@@ -1,7 +1,7 @@
 // /Code.gs
 
 // Vercel에 배포된 웹훅 URL
-const WEBHOOK_URL = 'https://YOUR_VERCEL_APP_URL/api/dividend-webhook';
+const WEBHOOK_URL = 'cha-line.vercel.app';
 
 // --- 운영용 설정 ---
 // 확인할 이메일 검색 조건 (실제 운영용) -> 동작 후에는 label설정하므로 label이 없고&&1day 이내의 메일만 대상
