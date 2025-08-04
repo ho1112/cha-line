@@ -1,0 +1,8 @@
+.env
+.env.*
+
+# Google API key json
+idyllic-creek-466612-n2-98cbe5107f8b.json
+
+# Google OAuth client
+client_secret_537438013107-57tc0bdm747nrti3j5nvvcp037sjc0j3.apps.googleusercontent.com.json
