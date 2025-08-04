@@ -1,4 +1,13 @@
 {
+  "name": "cha-line",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
   "dependencies": {
     "@line/bot-sdk": "^10.0.0",
     "@sparticuz/chromium-min": "^138.0.2",
