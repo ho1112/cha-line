@@ -1,10 +1,10 @@
 // /lib/scraper.js
 
-import playwright from 'playwright-core';
+import playwright, { Browser } from 'playwright-core';
 import chromium from '@sparticuz/chromium-min';
 import { google } from 'googleapis';
 
-async function getAuthCodeFromGmail() {
+async function getAuthCodeFromGmail(): Promise<string | null> {
   console.log('Fetching 2FA code from Gmail using OAuth 2.0...');
   try {
     // 1. 환경 변수에서 OAuth 2.0 정보 가져오기
@@ -40,7 +40,7 @@ async function getAuthCodeFromGmail() {
       return null;
     }
 
-    const messageId = listResponse.data.messages[0].id;
+    const messageId = listResponse.data.messages[0].id!;
 
     // 5. 이메일 내용 가져오기
     const messageResponse = await gmail.users.messages.get({
@@ -50,7 +50,7 @@ async function getAuthCodeFromGmail() {
     });
     
     // 6. 이메일 본문에서 인증 코드 추출
-    const bodyPart = messageResponse.data.payload.parts.find(part => part.mimeType === 'text/plain');
+    const bodyPart = messageResponse.data.payload?.parts?.find(part => part.mimeType === 'text/plain');
     if (!bodyPart || !bodyPart.body || !bodyPart.body.data) {
         throw new Error('Could not find plain text part in the email body.');
     }
@@ -66,7 +66,7 @@ async function getAuthCodeFromGmail() {
     console.log(`Fetched 2FA code: ${authCode}`);
     return authCode;
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Failed to get auth code from Gmail:', error);
     // API 관련 에러일 경우, 더 자세한 정보 출력
     if (error.response) {
@@ -76,8 +76,13 @@ async function getAuthCodeFromGmail() {
   }
 }
 
-export async function scrapeDividend() {
-  let browser = null;
+interface DividendResult {
+  text: string;
+  source: string;
+}
+
+export async function scrapeDividend(): Promise<DividendResult | null> {
+  let browser: Browser | null = null;
   console.log('Starting dividend scraping process...');
 
   try {
@@ -85,7 +90,7 @@ export async function scrapeDividend() {
     browser = await playwright.chromium.launch({
       args: chromium.args,
       executablePath: await chromium.executablePath(process.env.NODE_ENV === 'development' ? undefined : 'https://github.com/Sparticuz/chromium/releases/download/v123.0.1/chromium-v123.0.1-pack.tar'),
-      headless: chromium.headless,
+      headless: (chromium as any).headless,
     });
 
     const context = await browser.newContext();
@@ -96,8 +101,8 @@ export async function scrapeDividend() {
     await page.goto('https://www.sbisec.co.jp/ETGate');
 
     // 2. 아이디와 비밀번호 입력
-    await page.fill('input[name="user_id"]', process.env.SBI_ID);
-    await page.fill('input[name="user_password"]', process.env.SBI_PASSWORD);
+    await page.fill('input[name="user_id"]', process.env.SBI_ID!);
+    await page.fill('input[name="user_password"]', process.env.SBI_PASSWORD!);
     await page.click('input[name="ACT_login"]');
     console.log('Logged in with ID/Password.');
 
@@ -105,6 +110,10 @@ export async function scrapeDividend() {
     await page.waitForSelector('input[name="i_authentication_word"]', { timeout: 5000 });
     console.log('2FA page detected.');
     const authCode = await getAuthCodeFromGmail();
+    if (!authCode) {
+      console.log('Auth code not found, aborting scrape.');
+      return null;
+    }
     await page.fill('input[name="i_authentication_word"]', authCode);
     await page.click('input[name="ACT_2fa_login"]');
     console.log('Submitted 2FA code.');
@@ -117,7 +126,7 @@ export async function scrapeDividend() {
     // 5. 최신 배당금 정보 추출 (플레이스홀더)
     console.log('Scraping dividend information...');
     const dividendInfo = await page.evaluate(() => {
-      const rows = Array.from(document.querySelectorAll('.site-box-line table tr'));
+      const rows = Array.from(document.querySelectorAll<HTMLElement>('.site-box-line table tr'));
       const latestDividend = rows.find(row => row.innerText.includes('配当金'));
       return latestDividend ? latestDividend.innerText : 'No new dividend found.';
     });

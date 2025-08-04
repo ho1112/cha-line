@@ -1,11 +1,11 @@
-// /pages/api/test-line.js
+// /app/api/test-line/route.ts
 // 목적: 스크래핑 없이 LINE 알림 기능만 독립적으로 테스트합니다.
 // 사용법: 브라우저에서 https://<YOUR_APP_URL>/api/test-line 으로 접속하면 즉시 실행됩니다.
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { sendLineMessage, sendErrorMessage } from '../../../lib/notification';
 
-export async function GET(request) {
+export async function GET(request: NextRequest) {
   console.log('Executing LINE notification test...');
 
   try {
@@ -30,7 +30,7 @@ export async function GET(request) {
       status: 'success',
       message: 'LINE으로 2개의 테스트 메시지(성공, 에러)를 전송했습니다. LINE 앱을 확인해주세요.',
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('LINE test failed:', error);
     return NextResponse.json({
       status: 'error',

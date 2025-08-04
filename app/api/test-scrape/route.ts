@@ -1,13 +1,13 @@
-// /pages/api/test-scrape.js
+// /app/api/test-scrape/route.ts
 // 목적: 이메일 트리거 없이, 스크래핑부터 LINE 알림까지 전체 과정을 수동으로 테스트합니다.
 // 주의: 이 API는 실제 SBI 증권 사이트에 로그인하고 2FA를 시도합니다.
 // 사용법: 브라우저에서 https://<YOUR_APP_URL>/api/test-scrape 으로 접속하면 즉시 실행됩니다.
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { scrapeDividend } from '../../../lib/scraper';
 import { sendLineMessage, sendErrorMessage } from '../../../lib/notification';
 
-export async function GET(request) {
+export async function GET(request: NextRequest) {
   console.log('Executing manual scraping test...');
   
   try {
@@ -32,7 +32,7 @@ export async function GET(request) {
       });
     }
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Scraping test failed:', error);
     // 3. 에러 발생 시 LINE으로 실패 메시지 전송
     await sendErrorMessage(`수동 스크래핑 테스트 중 에러 발생: ${error.message}`);
