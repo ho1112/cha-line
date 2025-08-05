@@ -4,11 +4,22 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { sendLineMessage, sendErrorMessage } from '../../../lib/notification';
+import { WebhookRequestBody } from '@line/bot-sdk';
 
 export async function POST(request: NextRequest) {
-  console.log('Executing Gmail->LINE notification test (scraping skipped)...');
-
   try {
+    const body: WebhookRequestBody = await request.json();
+
+    // LINE Developers Console의 'Verify' 요청인지 확인
+    // 'Verify' 요청은 events 배열이 비어있는 상태로 전송됩니다.
+    if (body.events && body.events.length === 0) {
+      console.log('Received LINE webhook verification for /api/test-notification.');
+      return NextResponse.json({ status: 'success' });
+    }
+
+    // 'Verify'가 아닌 실제 테스트 요청(GAS 호출 등)일 경우
+    console.log('Executing Gmail->LINE notification test (scraping skipped)...');
+    
     // 1. 스크래핑을 대체할 정적 테스트 데이터 생성
     const testDividendData = {
       text: '[테스트] Gmail 감지 및 LINE 연동이 정상입니다.\n(실제 스크래핑은 실행되지 않았습니다.)',
@@ -29,7 +40,6 @@ export async function POST(request: NextRequest) {
     console.error('Test notification failed:', error);
 
     // 4. 에러 발생 시 LINE으로 실패 메시지 전송
-    // (환경 변수 문제 등으로 이마저 실패할 수 있음)
     try {
       await sendErrorMessage(`'/api/test-notification' 실행 중 에러 발생: ${error.message}`);
     } catch (sendError) {
