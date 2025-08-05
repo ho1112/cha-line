@@ -11,8 +11,7 @@ export async function POST(request: NextRequest) {
   try {
     // 1. 스크래핑을 대체할 정적 테스트 데이터 생성
     const testDividendData = {
-      text: '[테스트] Gmail 감지 및 LINE 연동이 정상입니다.
-(실제 스크래핑은 실행되지 않았습니다.)',
+      text: '[테스트] Gmail 감지 및 LINE 연동이 정상입니다.\n(실제 스크래핑은 실행되지 않았습니다.)',
       source: '/api/test-notification',
     };
 
