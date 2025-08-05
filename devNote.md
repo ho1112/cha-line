@@ -127,3 +127,48 @@
   ----------
 
 2. 두번째
+### **Next.js 프로젝트 전환 및 타입스크립트 마이그레이션**
+
+- **요약**: 기존의 JavaScript 기반 코드를 표준적인 **Next.js App Router** 구조로 전환하고, 전체 프로젝트를 **TypeScript**로 마이그레이션했습니다. 이 과정에서 발생한 여러 설정 오류와 컴파일 에러를 해결하여 Vercel 배포에 성공했습니다.
+
+---
+
+#### **무엇을 했는가? (What We've Done)**
+
+1.  **Next.js App Router로 전환**:
+    *   기존 `pages` 디렉토리 구조를 최신 Next.js 표준인 `app` 디렉토리 구조로 변경했습니다.
+    *   `pages/index.js`는 `app/page.tsx`로, `pages/api/*.js`는 `app/api/*/route.ts`로 이동 및 개명하여 App Router 방식에 맞게 수정했습니다.
+
+2.  **TypeScript 마이그레이션**:
+    *   프로젝트의 모든 JavaScript(`.js`) 파일을 TypeScript(`.ts`, `.tsx`) 파일로 전환했습니다.
+    *   `typescript`, `@types/node`, `@types/react` 등 타입스크립트 구동에 필요한 개발 의존성을 설치했습니다.
+    *   `tsconfig.json` 파일을 생성하고, Next.js에 최적화된 컴파일러 옵션을 설정했습니다.
+    *   `lib` 디렉토리와 `api` 라우트의 모든 함수에 명시적인 타입을 추가하여 코드 안정성을 높였습니다.
+
+3.  **프로젝트 설정 및 구조 표준화**:
+    *   `package.json`에 `build`, `dev`, `start` 등 Next.js 실행에 필수적인 `scripts`를 추가했습니다.
+    *   App Router의 필수 파일인 `app/layout.tsx`를 생성하여 모든 페이지의 공통 레이아웃을 정의했습니다.
+    *   빌드 결과물인 `.next` 폴더를 Git 추적에서 제외하기 위해 `.gitignore`에 추가했습니다.
+    *   `next.config.mjs`, `next-env.d.ts` 등 표준 Next.js 프로젝트에 필요한 설정 파일들을 모두 구비했습니다.
+    *   `package.json`의 키 순서를 표준적인 순서(`name`, `scripts`, `dependencies`...)로 정리하여 가독성을 개선했습니다.
+
+4.  **Vercel 배포 오류 해결**:
+    *   "No Output Directory named 'public' found" 빌드 에러의 원인이, Vercel이 프로젝트 초기 상태를 기준으로 프레임워크 설정을 저장했기 때문임을 파악했습니다.
+    *   사용자가 Vercel 프로젝트를 삭제하고 재연결하는 방식으로 문제를 해결하여, 최종적으로 **Vercel 배포에 성공**하고 `page.tsx` 화면이 정상적으로 표시되는 것을 확인했습니다.
+
+---
+
+#### **무엇이 완료된 상태인가? (Current Status)**
+
+*   프로젝트는 이제 **TypeScript 기반의 표준 Next.js App Router 애플리케이션**으로 완전히 전환되었습니다.
+*   모든 코드는 타입스크립트로 작성되었으며, 컴파일 에러 없이 로컬에서 성공적으로 빌드됩니다 (`npm run build`).
+*   Vercel에 성공적으로 배포되어, 루트 페이지(`cha-line.vercel.app`)와 API 엔드포인트가 정상적으로 동작할 준비를 마쳤습니다.
+*   프로젝트 구조와 설정이 표준화되어, 향후 유지보수 및 기능 확장이 용이한 상태입니다.
+---
+3. 세번째
+### **LINE 웹훅에 대한 주요 학습**
+
+- **핵심 발견**: LINE Messaging API의 웹훅은 오직 **`POST` 요청**에만 응답하도록 설계되어 있습니다. `GET` 요청은 처리할 수 없습니다.
+- **결론**: 브라우저에서 `GET` 요청으로 간단히 테스트하려던 `/api/test-line` 엔드포인트는 LINE 플랫폼의 요구사항과 맞지 않아 불필요하다고 판단했습니다.
+- **대체 방안**: 기능 테스트는 LINE Official Account Manager에서 직접 메시지를 보내거나, 실제 웹훅 로직이 구현된 `/api/dividend-webhook`을 통해 수행하는 것이 올바른 접근 방식입니다.
+- **조치**: 이에 따라 관련 테스트 파일(`app/api/test-line/route.ts`)은 프로젝트에서 삭제하기로 결정했습니다.
