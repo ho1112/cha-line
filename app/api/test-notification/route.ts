@@ -1,6 +1,6 @@
 // /app/api/test-notification/route.ts
 // 목적: SBI 증권 스크래핑 과정을 생략하고, Gmail 감지(GAS 호출) -> LINE 메시지 전송 기능만 테스트합니다.
-// 사용법: Google Apps Script의 fetchUrl에 이 API의 주소를 입력하여 호출합니다.
+// 사용법: LINE webhook URL을 이 API 주소로 설정하고, Google Apps Script의 fetchUrl에 이 API의 주소를 입력하여 호출합니다.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { sendLineMessage, sendErrorMessage } from '../../../lib/notification';

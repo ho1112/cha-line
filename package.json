@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "debug:scrape": "PWDEBUG=1 TS_NODE_PROJECT=tsconfig.debug.json ts-node run-debug.ts"
   },
   "dependencies": {
     "@line/bot-sdk": "^10.0.0",
@@ -20,6 +21,8 @@
   "devDependencies": {
     "@types/node": "^24.2.0",
     "@types/react": "^19.1.9",
+    "dotenv": "^17.2.1",
+    "ts-node": "^10.9.2",
     "typescript": "^5.9.2"
   }
 }

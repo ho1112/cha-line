@@ -172,3 +172,81 @@
 - **결론**: 브라우저에서 `GET` 요청으로 간단히 테스트하려던 `/api/test-line` 엔드포인트는 LINE 플랫폼의 요구사항과 맞지 않아 불필요하다고 판단했습니다.
 - **대체 방안**: 기능 테스트는 LINE Official Account Manager에서 직접 메시지를 보내거나, 실제 웹훅 로직이 구현된 `/api/dividend-webhook`을 통해 수행하는 것이 올바른 접근 방식입니다.
 - **조치**: 이에 따라 관련 테스트 파일(`app/api/test-line/route.ts`)은 프로젝트에서 삭제하기로 결정했습니다.
+---
+4. 네번째
+### **LINE `pushMessage` 디버깅 및 `userId` 확인 과정**
+
+- **문제 발생**: `test-notification` API를 통한 테스트 메시지 전송이 계속 실패했습니다. Vercel 서버 로그 분석 결과, 다음과 같은 에러들이 순차적으로 발생했습니다.
+    1.  `The property, 'to', in the request body is invalid`: `MY_LINE_USER_ID` 환경 변수에 잘못된 형식의 ID(로그인용 ID)를 입력하여 발생했습니다.
+    2.  `You can't send messages to yourself`: `webhook.site`를 통해 얻은 봇 자신의 ID(`destination`)를 `MY_LINE_USER_ID`에 입력하여 발생했습니다.
+
+- **핵심 발견**: LINE의 `pushMessage` API는 반드시 `U`로 시작하는 **사용자의 내부 식별 ID (`userId`)**를 `to` 파라미터로 요구합니다. 이 ID는 로그인 ID나 봇의 ID와는 다릅니다. LINE로그인 할 때 사용했던 ID인 줄 알았는데 아니였습니다!
+
+- **해결 과정**:
+    1.  `webhook.site`를 임시 웹훅 URL로 설정했습니다.
+    2.  **사용자가 직접 봇에게 LINE 메시지를 보냈습니다.**
+    3.  `webhook.site`에 수신된 데이터의 `events[0].source.userId` 경로에서 `U`로 시작하는 **진짜 사용자 ID**를 성공적으로 찾아냈습니다.
+    4.  이 ID를 Vercel의 `MY_LINE_USER_ID` 환경 변수에 올바르게 설정하고 재배포하여, 마침내 테스트 알림 메시지 수신에 성공했습니다.
+    {
+  "destination": "Ucb2c792cebe7c9ba974a01d62b0e8b24",
+  "events": [
+    {
+      "type": "message",
+      "message": {
+        "type": "text",
+        "id": "573052424819310747",
+        "quoteToken": "QI7HYu-Q5tlexRGwjDKvIPbtsDGIXO7l9ZlLjD1tzFRgb2uHadGJuCPvE5xrwzbDGg69kedaLE8BWBZ0NDsFYqQ5a_0Q86Tc6uz5sH3vg5QTnJHw7NBmqrXxH2Psc4voImCoPl-lfOmCy6FyY5EnBA",
+        "text": "내 아이디"
+      },
+      "webhookEventId": "01K1X3GJT3NC0ZNPDA6D3BDJP3",
+      "deliveryContext": {
+        "isRedelivery": false
+      },
+      "timestamp": 1754397166222,
+      "source": {
+        "type": "user",
+        "userId": "U8d55942f87f2155f24550b7fe6eac9c0"
+      },
+      "replyToken": "ec0186b265ef46dd87505db6249741f5",
+      "mode": "active"
+    }
+  ]
+}
+
+- **결론**: `pushMessage` 사용 시, 정확한 수신 대상의 `userId`를 알아내는 과정이 매우 중요함을 확인했습니다.
+
+5. 다섯번째
+
+### **Playwright 로컬 디버깅 환경 구축 및 스크래핑 로직 개선**
+
+- **요약**: Next.js API 라우트 내에 캡슐화된 Playwright 로직을 효율적으로 디버깅하기 위해, 독립적인 로컬 테스트 환경을 구축했습니다. 이 과정에서 실제 SBI 증권 사이트의 로그인 흐름을 분석하며 스크래핑 스크립트를 단계별로 완성했습니다.
+
+---
+
+#### **무엇을 했는가? (What We've Done)**
+
+1.  **독립적인 디버깅 환경 구축**:
+    *   `ts-node`와 `dotenv` 라이브러리를 설치하여 TypeScript 파일을 직접 실행하고 `.env.local` 환경 변수를 사용할 수 있는 기반을 마련했습니다.
+    *   `scrapeDividend` 함수를 직접 호출하는 `run-debug.ts` 파일을 생성했습니다.
+    *   `package.json`에 `PWDEBUG=1` 환경 변수를 포함한 `debug:scrape` 스크립트를 추가하여, `npm run debug:scrape` 명령어로 언제든지 UI 모드와 Playwright Inspector를 활성화할 수 있도록 설정했습니다.
+    *   `ts-node`와 Next.js의 `tsconfig.json` 설정 충돌을 해결하기 위해, 디버깅 전용 `tsconfig.debug.json` 파일을 생성하여 실행 환경을 분리했습니다.
+
+2.  **SBI 증권 로그인 로직 상세 분석 및 구현**:
+    *   **로그인**: `<button>` 태그로 된 로그인 버튼을 정확히 타겟팅하고, `Promise.all`과 `page.waitForNavigation`을 사용하여 클릭과 페이지 이동을 안정적으로 동기화했습니다.
+    *   **디바이스 인증 (팝업)**: 로그인 후 나타나는 디바이스 인증 팝업의 2글자 코드를 추출하고, 입력 후 "송신" 버튼을 클릭하여 팝업을 닫는 로직을 구현했습니다.
+    *   **2단계 인증 (이메일)**: 팝업이 닫힌 후 나타나는 "이메일 내용 확인" 체크박스를 클릭하고, Gmail API를 통해 가져온 6자리 인증 코드를 입력하여 최종 로그인에 성공했습니다.
+
+3.  **Gmail 파싱 로직 강화**:
+    *   기존 `text/plain`만 처리하던 로직에서 `Could not find plain text part` 에러가 발생하는 것을 확인했습니다.
+    *   `text/html` 형식의 이메일 본문도 처리할 수 있도록 파싱 로직을 개선하여, 어떤 형식의 이메일이 오든 안정적으로 인증 코드를 추출할 수 있도록 수정했습니다.
+
+4.  **배당금 내역 페이지 접근 방식 개선**:
+    *   로그인 후 여러 페이지를 거쳐 배당금 내역으로 이동하는 대신, URL 쿼리 스트링을 활용하는 방식을 채택했습니다.
+    *   오늘 날짜를 동적으로 계산하여 `dispositionDateFrom`, `dispositionDateTo`, `period=TODAY` 파라미터를 포함한 URL을 직접 생성하여, 단번에 목표 페이지로 이동하도록 구현했습니다. 이는 훨씬 빠르고 안정적인 방법입니다.
+
+---
+
+#### **다음 단계는 무엇인가? (Next Steps)**
+
+*   **배당금 내역 스크래핑**: 동적으로 생성한 URL로 성공적으로 이동했으므로, 이제 해당 페이지의 HTML 구조를 분석하여 실제 배당금 내역(종목명, 금액, 입금일 등)을 추출하는 `page.evaluate` 로직을 완성해야 합니다.
+*   **데이터 구조화**: 추출한 텍스트를 의미 있는 JSON 객체로 변환하는 작업을 진행합니다.
