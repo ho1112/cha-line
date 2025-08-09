@@ -4,29 +4,29 @@
 // 결과: 성공 시 2FA 코드를, 실패 시 에러 메시지를 브라우저에 JSON 형태로 보여줍니다.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { scrapeDividend } from '../../../lib/scraper';
+import { scrapeDividend } from '@/lib/scraper';
 
 export async function GET(request: NextRequest) {
   console.log('Executing scraping test in "get-2fa-code" mode...');
   
   try {
-    // 1. 2FA 코드 가져오기 테스트 모드로 스크래핑 함수 실행
-    const result = await scrapeDividend({ testMode: 'get-2fa-code' });
+    // 1. 스크래핑 함수 실행 (testMode 제거)
+    const result = await scrapeDividend();
 
     if (result) {
-      // 2. 성공 시, 가져온 2FA 코드(또는 메시지)를 브라우저에 반환
-      console.log('Scraping test (get-2fa-code) successful.');
+      // 2. 성공 시, 스크래핑 결과를 브라우저에 반환
+      console.log('Scraping test successful.');
       return NextResponse.json({
         status: 'success',
-        message: '성공적으로 2FA 코드를 가져왔습니다.',
+        message: '스크래핑 테스트에 성공했습니다.',
         data: result,
       });
     } else {
-      // scrapeDividend가 null을 반환한 경우 (예: 2FA 메일 없음)
-      console.log('Scraping test finished, but no 2FA email was found.');
+      // scrapeDividend가 null을 반환한 경우
+      console.log('Scraping test finished, but no data was returned.');
       return NextResponse.json({
         status: 'no_action',
-        message: '스크래핑은 정상적으로 실행되었으나, 처리할 2FA 이메일을 찾지 못했습니다.',
+        message: '스크래핑은 정상적으로 실행되었으나, 반환된 데이터가 없습니다.',
       });
     }
 

@@ -1,11 +1,15 @@
-// /lib/scraper.js
+// /lib/scraper.ts
 
 import playwright, { type Browser } from 'playwright-core';
 import chromium from '@sparticuz/chromium-min';
 import { google } from 'googleapis';
+import * as fs from 'fs';
+import * as path from 'path';
+import { parse } from 'csv-parse/sync';
+import * as iconv from 'iconv-lite';
 
-async function getAuthCodeFromGmail(): Promise<string | null> {
-  console.log('Fetching 2FA code from Gmail using OAuth 2.0...');
+async function getAuthUrlFromGmail(): Promise<string | null> {
+  console.log('Fetching Auth URL from Gmail...');
   try {
     // 1. 환경 변수에서 OAuth 2.0 정보 가져오기
     const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN } = process.env;
@@ -17,26 +21,22 @@ async function getAuthCodeFromGmail(): Promise<string | null> {
     const oauth2Client = new google.auth.OAuth2(
       GOOGLE_CLIENT_ID,
       GOOGLE_CLIENT_SECRET,
-      'https://developers.google.com/oauthplayground' // 리디렉션 URI는 토큰 발급 시 사용한 것과 일치해야 함
+      'https://developers.google.com/oauthplayground'
     );
-
-    oauth2Client.setCredentials({
-      refresh_token: GOOGLE_REFRESH_TOKEN,
-    });
+    oauth2Client.setCredentials({ refresh_token: GOOGLE_REFRESH_TOKEN });
 
     // 3. Gmail API 클라이언트 생성
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
-    // 4. SBI 증권 2FA 이메일 검색 (읽지 않은 메일, "認証コード" 제목)
+    // 4. SBI 증권 인증 URL 이메일 검색 (제목 변경)
     const listResponse = await gmail.users.messages.list({
       userId: 'me',
-      q: 'from:info@sbisec.co.jp subject:認証コード is:unread',
+      q: 'from:info@sbisec.co.jp subject:認証コード入力画面のお知らせ is:unread',
       maxResults: 1,
     });
 
     if (!listResponse.data.messages || listResponse.data.messages.length === 0) {
-      // 2FA 이메일이 없을 경우, 스크래핑할 필요가 없으므로 에러 대신 null을 반환하여 상위 로직에서 처리하도록 함
-      console.log('No new 2FA email found from SBI Securities. It might not be a login attempt requiring 2FA.');
+      console.log('No new auth URL email found.');
       return null;
     }
 
@@ -48,21 +48,16 @@ async function getAuthCodeFromGmail(): Promise<string | null> {
       id: messageId,
       format: 'full',
     });
-    
-    // 6. 이메일 본문에서 인증 코드 추출 (HTML 또는 Plain Text 지원)
+
     const payload = messageResponse.data.payload;
     if (!payload) throw new Error('Email payload is empty.');
 
-    let bodyData: string | null | undefined = null;
-
-    // 재귀적으로 이메일 파트를 탐색하여 text/plain 또는 text/html을 찾는 함수
+    // 6. 이메일 본문에서 인증 URL 추출 (로직 변경)
     const findTextPart = (parts: any[]): any => {
       let foundPart = parts.find(part => part.mimeType === 'text/plain');
       if (foundPart) return foundPart;
-
       foundPart = parts.find(part => part.mimeType === 'text/html');
       if (foundPart) return foundPart;
-      
       for (const part of parts) {
         if (part.parts) {
           const nestedPart = findTextPart(part.parts);
@@ -86,27 +81,19 @@ async function getAuthCodeFromGmail(): Promise<string | null> {
 
     const body = textPart.body.data;
     const decodedBody = Buffer.from(body, 'base64').toString('utf-8');
-    
-    const authCodeMatch = decodedBody.match(/■認証コード\s+([A-Z0-9]{6})/);
-    if (!authCodeMatch || !authCodeMatch[1]) {
-      // HTML 태그 제거 후 다시 시도 (HTML 이메일의 경우를 대비)
-      const plainTextBody = decodedBody.replace(/<[^>]*>/g, '\n');
-      const retryMatch = plainTextBody.match(/■認証コード\s+([A-Z0-9]{6})/);
-      if (!retryMatch || !retryMatch[1]) {
-        throw new Error('Could not find the 6-character auth code in the email body. Body was: ' + decodedBody);
-      }
-      const authCode = retryMatch[1];
-      console.log(`Fetched 2FA code: ${authCode}`);
-      return authCode;
+
+    // URL을 추출하기 위한 정규식 (https로 시작하고 큰따옴표/공백 전까지)
+    const urlMatch = decodedBody.match(/(https:\/\/[^\s"]+)/);
+    if (!urlMatch || !urlMatch[0]) {
+      throw new Error('Could not find the auth URL in the email body.');
     }
-    
-    const authCode = authCodeMatch[1];
-    console.log(`Fetched 2FA code: ${authCode}`);
-    return authCode;
+
+    const authUrl = urlMatch[0];
+    console.log(`Fetched Auth URL: ${authUrl}`);
+    return authUrl;
 
   } catch (error: any) {
-    console.error('Failed to get auth code from Gmail:', error);
-    // API 관련 에러일 경우, 더 자세한 정보 출력
+    console.error('Failed to get auth URL from Gmail:', error);
     if (error.response) {
       console.error('API Error Details:', error.response.data.error);
     }
@@ -119,7 +106,7 @@ interface DividendResult {
   source: string;
 }
 
-export async function scrapeDividend(options?: { testMode?: 'get-2fa-code' }): Promise<DividendResult | null> {
+export async function scrapeDividend(): Promise<DividendResult | null> {
   let browser: Browser | null = null;
   console.log('Starting dividend scraping process...');
 
@@ -159,57 +146,53 @@ export async function scrapeDividend(options?: { testMode?: 'get-2fa-code' }): P
     ]);
     console.log('Logged in with ID/Password.');
 
-    // --- 새로운 디바이스 인증 단계 시작 ---
-    console.log('Navigated to device authentication page.');
+    // 3. 새로운 디바이스 인증 로직 (2025/8/9 이후 사양)
+    console.log('Starting new device authentication flow...');
 
-    // 화면에 표시된 2글자 인증 코드를 포함하는 요소가 나타날 때까지 기다립니다.
-    const deviceAuthCodeElement = page.locator('#randomString');
-    await deviceAuthCodeElement.waitFor();
-    const deviceAuthCode = await deviceAuthCodeElement.textContent();
+    // "Eメールを送信する" 버튼 클릭하여 인증 URL 이메일 발송 요청
+    await page.click('button:has-text("Eメールを送信する")');
+    console.log('Clicked "Send Email" button.');
 
-    if (!deviceAuthCode || deviceAuthCode.trim().length !== 2) {
-        throw new Error(`Failed to extract 2-character device auth code. Found: ${deviceAuthCode}`);
+    // 웹사이트의 인증 코드와 이메일의 인증 URL을 동시에 가져오기
+    const [webAuthCode, authUrl] = await Promise.all([
+        // 작업 (A): 웹사이트에서 화면에 표시된 인증 코드 가져오기
+        (async () => {
+            // ★★★ 중요: 아래 선택자는 실제 페이지와 다를 수 있습니다. ★★★
+            const codeElement = page.locator('#device_auth_code_display_element');
+            await codeElement.waitFor();
+            const code = await codeElement.textContent();
+            if (!code) throw new Error('Could not find auth code on the web page.');
+            console.log(`Auth code from web: ${code.trim()}`);
+            return code.trim();
+        })(),
+        // 작업 (B): 이메일에서 인증 URL 가져오기
+        getAuthUrlFromGmail()
+    ]);
+
+    if (!authUrl) {
+        throw new Error('Failed to get auth URL from Gmail.');
     }
-    const codeToEnter = deviceAuthCode.trim();
-    console.log(`Device auth code found: ${codeToEnter}`);
 
-    // 인증 코드를 입력 필드에 채웁니다.
+    // 4. 새 탭에서 인증 URL 열고 코드 입력
+    console.log(`Opening auth URL in a new tab: ${authUrl}`);
+    const authPage = await context.newPage();
+    await authPage.goto(authUrl);
+
     // ★★★ 중요: 아래 선택자는 실제 페이지와 다를 수 있습니다. ★★★
-    await page.fill('input[name="userInput"]', codeToEnter);
+    await authPage.fill('input[name="authentication_code_input"]', webAuthCode);
+    await authPage.click('button:has-text("認証する")');
+    console.log('Submitted auth code on the auth page.');
+    await authPage.close(); // 인증 후 탭 닫기
 
-    // "송신" 버튼을 클릭합니다. (페이지 이동을 기다리지 않습니다)
+    // 5. 원래 페이지로 돌아와서 최종 등록
+    console.log('Returned to the original page to finalize registration.');
     // ★★★ 중요: 아래 선택자는 실제 페이지와 다를 수 있습니다. ★★★
-    console.log('Submitting device authentication...');
-    await page.click('input[value="送信"]'); // "송신" 버튼의 선택자
-    console.log('Device auth popup submitted.');
-    // --- 새로운 디바이스 인증 단계 종료 ---
+    await page.check('input[name="confirmation_checkbox"]'); // "確認しました" 체크박스
+    await page.click('button:has-text("デバイスを登録する")'); // "デバイスを登録する" 버튼
+    console.log('Device registration complete.');
 
-    // 3. 2FA 코드 처리
-    // 팝업이 닫히고 이메일 인증 코드 입력 필드가 나타날 때까지 기다립니다.
-    await page.waitForSelector('input[name="device_code"]', { timeout: 5000 });
-    console.log('2FA page detected.');
-
-    // "Eメールの記載との一致を確認しました" 체크박스를 클릭합니다.
-    await page.check('input[name="device_string_checkbox"]');
-    console.log('Checked the confirmation checkbox.');
-
-    const authCode = await getAuthCodeFromGmail();
-    if (!authCode) {
-      console.log('Auth code not found, aborting scrape.');
-      return null;
-    }
-
-    // ★★★ 테스트 모드 분기 ★★★
-    if (options?.testMode === 'get-2fa-code') {
-      console.log(`[Test Mode] Successfully fetched 2FA code: ${authCode}. Halting execution as planned.`);
-      return {
-        text: `[테스트 성공] 2FA 인증 코드를 성공적으로 가져왔습니다: ${authCode}`,
-        source: 'test-mode: get-2fa-code'
-      };
-    }
-
-    await page.fill('input[name="device_code"]', authCode);
-    console.log('Submitted 2FA code.');
+    // 최종적으로 페이지 이동이 완료될 때까지 기다립니다.
+    await page.waitForNavigation({ waitUntil: 'domcontentloaded' });
 
     // 4. 배당금 이력 페이지로 이동 (오늘 날짜 기준으로 동적 URL 생성)
     console.log('Generating dynamic URL for today\'s dividend history...');
@@ -227,18 +210,58 @@ export async function scrapeDividend(options?: { testMode?: 'get-2fa-code' }): P
     console.log(`Navigating to: ${dividendUrl}`);
     await page.goto(dividendUrl);
 
-    // 5. 최신 배당금 정보 추출 (플레이스홀더)
-    console.log('Scraping dividend information...');
-    const dividendInfo = await page.evaluate(() => {
-      const rows = Array.from(document.querySelectorAll<HTMLElement>('.site-box-line table tr'));
-      const latestDividend = rows.find(row => row.innerText.includes('配当金'));
-      return latestDividend ? latestDividend.innerText : 'No new dividend found.';
+    // 5. 최신 배당금 정보 추출 (CSV 다운로드 방식)
+    console.log('Scraping dividend information via CSV download...');
+
+    // CSV 다운로드 버튼 클릭과 다운로드 이벤트를 동시에 기다립니다.
+    const [download] = await Promise.all([
+        page.waitForEvent('download'),
+        // ★★★ 중요: 아래 선택자는 실제 페이지와 다를 수 있습니다. Inspector로 정확한 값을 찾아야 합니다. ★★★
+        page.click('#csv_download_button'),
+    ]);
+
+    // 다운로드된 파일의 임시 경로를 가져옵니다.
+    const tempFilePath = await download.path();
+    if (!tempFilePath) {
+        throw new Error('Failed to get temporary file path for download.');
+    }
+    console.log(`File downloaded to temporary path: ${tempFilePath}`);
+
+    // CSV 파일을 Shift_JIS 인코딩으로 읽고 파싱합니다.
+    const fileBuffer = fs.readFileSync(tempFilePath);
+    const csvData = iconv.decode(fileBuffer, 'Shift_JIS');
+    const records = parse(csvData, {
+        columns: true, // 첫 번째 줄을 헤더로 사용
+        skip_empty_lines: true,
     });
 
-    console.log('Scraping finished.');
+    // 임시 파일을 삭제합니다.
+    fs.unlinkSync(tempFilePath);
+    console.log('Temporary file deleted.');
+
+    if (records.length === 0) {
+        console.log('CSV file was empty. No new dividend found.');
+        return {
+            text: '금일 신규 배당금 내역이 없습니다.',
+            source: 'SBI Securities (CSV)'
+        };
+    }
+
+    // 파싱된 데이터를 기반으로 알림 메시지를 생성합니다.
+    const dividendMessages = records.map((record: any) => {
+        // ★★★ 중요: 아래 키(key) 값들은 실제 CSV 헤더와 다를 수 있습니다. ★★★
+        const stockName = record['銘柄名'];
+        const amount = record['受取額(税引後・円)'];
+        const date = record['受渡日'];
+        return `- ${stockName}: ${amount}원 (입금일: ${date})`;
+    });
+
+    const combinedMessage = dividendMessages.join('\n');
+    console.log(`Scraping finished. Found ${records.length} items.`);
+    
     return {
-      text: dividendInfo,
-      source: 'SBI Securities'
+        text: combinedMessage,
+        source: 'SBI Securities (CSV)'
     };
 
   } catch (error) {

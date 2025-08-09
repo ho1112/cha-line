@@ -1,7 +1,7 @@
 // /app/api/dividend-webhook/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { scrapeDividend } from '../../../lib/scraper';
+import { scrapeDividend } from '@/lib/scraper';
 import { sendLineMessage, sendErrorMessage } from '../../../lib/notification';
 import { Client } from '@line/bot-sdk';
 
