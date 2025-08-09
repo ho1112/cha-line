@@ -21,8 +21,13 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const body = await request.json().catch(() => ({}));
+    const overrideDates = {
+      from: typeof body?.from === 'string' ? body.from : undefined,
+      to: typeof body?.to === 'string' ? body.to : undefined,
+    };
     // 1. 스크래핑 실행
-    const dividendData = await scrapeDividend();
+    const dividendData = await scrapeDividend({ overrideDates });
 
     if (dividendData) {
       // 2. LINE으로 성공 메시지 전송

@@ -240,7 +240,7 @@ interface DividendResult {
   source: string;
 }
 
-export async function scrapeDividend(options: { debugAuthOnly?: boolean } = {}): Promise<DividendResult | null> {
+export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrideDates?: { from?: string; to?: string } } = {}): Promise<DividendResult | null> {
   let browser: Browser | null = null;
   console.log('Starting dividend scraping process...');
 
@@ -347,14 +347,16 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean } = {}):
     // 4. 배당금 이력 페이지로 이동 (항상 날짜 파라미터만 사용)
     console.log('Generating dynamic URL for dividend history...');
 
-    // ENV 우선, 없으면 오늘 날짜 사용
-    const envFrom = process.env.SCRAPE_FROM; // yyyy/mm/dd
-    const envTo = process.env.SCRAPE_TO;     // yyyy/mm/dd
+    // 요청 바디 우선, 다음 ENV, 없으면 JST 오늘
+    const bodyFrom = options.overrideDates?.from; // yyyy/mm/dd
+    const bodyTo = options.overrideDates?.to;     // yyyy/mm/dd
+    const envFrom = process.env.SCRAPE_FROM;      // yyyy/mm/dd
+    const envTo = process.env.SCRAPE_TO;          // yyyy/mm/dd
 
     let dispositionDateFrom: string;
     let dispositionDateTo: string;
-    const from = envFrom;
-    const to = envTo;
+    const from = bodyFrom ?? envFrom;
+    const to = bodyTo ?? envTo;
     if (from && to) {
       dispositionDateFrom = from;
       dispositionDateTo = to;
