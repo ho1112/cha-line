@@ -1,7 +1,7 @@
 // /lib/scraper.ts
 
 import playwright, { type Browser } from 'playwright-core';
-import chromium from '@sparticuz/chromium-min';
+import chromium from '@sparticuz/chromium';
 import { google } from 'googleapis';
 import * as fs from 'fs';
 import { parse } from 'csv-parse/sync';

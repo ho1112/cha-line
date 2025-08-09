@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "@line/bot-sdk": "^10.0.0",
-    "@sparticuz/chromium-min": "^138.0.2",
+    "@sparticuz/chromium": "^126.0.0",
     "csv-parse": "^6.1.0",
     "googleapis": "^154.1.0",
     "iconv-lite": "^0.6.3",
