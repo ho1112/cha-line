@@ -36,6 +36,7 @@ export async function checkLoginPage(options?: { prefillCredentials?: boolean })
   const loginUrl = 'https://www.sbisec.co.jp/ETGate/?_ControlID=WPLETlgR001Control&_PageID=WPLETlgR001Rlgn50&_DataStoreID=DSWPLETlgR001Control&_ActionID=login&getFlg=on';
   try {
     const isDebugMode = process.env.PWDEBUG === '1';
+    const remoteWsEndpoint = process.env.BROWSER_WS_ENDPOINT;
     if (isDebugMode) {
       const localChromePath = process.env.LOCAL_CHROME_PATH;
       if (localChromePath) {
@@ -247,8 +248,18 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
 
   try {
     const isDebugMode = process.env.PWDEBUG === '1';
+    const remoteWsEndpoint = process.env.BROWSER_WS_ENDPOINT;
 
-    if (isDebugMode) {
+    if (remoteWsEndpoint) {
+      console.log('Connecting to remote browser (BROWSER_WS_ENDPOINT)...');
+      try {
+        // CDP (e.g., Browserless Chrome)
+        browser = await (playwright.chromium as any).connectOverCDP(remoteWsEndpoint);
+      } catch (e) {
+        // Playwright server endpoint
+        browser = await (playwright.chromium as any).connect(remoteWsEndpoint);
+      }
+    } else if (isDebugMode) {
       console.log('Running in local debug mode. Launching system Chrome...');
       const localChromePath = process.env.LOCAL_CHROME_PATH;
       if (localChromePath) {
@@ -270,7 +281,15 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
       });
     }
 
-    const context = await browser.newContext({ acceptDownloads: true });
+    if (!browser) {
+      throw new Error('Failed to acquire a browser instance');
+    }
+
+    // 컨텍스트 생성 (원격 CDP의 경우 기본 컨텍스트 재사용)
+    let context = browser.contexts()[0];
+    if (!context) {
+      context = await browser.newContext({ acceptDownloads: true });
+    }
     const page = await context.newPage();
 
     // 1. SBI 증권 로그인 페이지로 이동
