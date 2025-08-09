@@ -7,6 +7,9 @@
 // Vercel에 배포된 웹훅 URL
 const PRODUCTION_WEBHOOK_URL = 'https://cha-line.vercel.app/api/dividend-webhook';
 const TEST_WEBHOOK_URL = 'https://cha-line.vercel.app/api/test-notification';
+// GAS→서버(vercel) 인증용 시크릿
+const SECRET = PropertiesService.getScriptProperties().getProperty('GAS_SHARED_SECRET') || '';
+
 
 // 확인할 이메일 검색 조건
 const SEARCH_QUERY = 'from:cs@sbisec.co.jp subject:配当金 -label:cha-line-done newer_than:1d';
@@ -40,6 +43,7 @@ function main() {
     const response = UrlFetchApp.fetch(PRODUCTION_WEBHOOK_URL, {
       method: 'post',
       contentType: 'application/json',
+      headers: { 'x-gas-secret': SECRET },
       payload: JSON.stringify({ source: 'Google Apps Script - Production' })
     });
     
@@ -107,6 +111,7 @@ function testSearch() {
       const response = UrlFetchApp.fetch(TEST_WEBHOOK_URL, {
         method: 'post',
         contentType: 'application/json',
+        headers: { 'x-gas-secret': SECRET },
         payload: JSON.stringify({ source: 'Google Apps Script - Test' })
       });
 

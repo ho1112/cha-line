@@ -12,6 +12,13 @@ export async function POST(request: NextRequest) {
   const isLineWebhook = request.headers.get('x-line-signature');
 
   // TODO: x-line-signature 검증 로직 추가
+  // GAS 보호: LINE 서명이 없는 요청은 x-gas-secret을 검증
+  if (!isLineWebhook) {
+    const gasSecret = request.headers.get('x-gas-secret');
+    if (!process.env.GAS_SHARED_SECRET || gasSecret !== process.env.GAS_SHARED_SECRET) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+  }
 
   try {
     // 1. 스크래핑 실행
