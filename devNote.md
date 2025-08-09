@@ -297,3 +297,50 @@
 
 *   **스크래핑 로직 전체 완성**: SBI 증권의 새로운 인증 사양(URL 방식)에 대응하는 코드와, 최종 데이터를 CSV로 다운로드하여 파싱하는 안정적인 스크래핑 로직이 모두 구현되었습니다.
 *   **테스트 준비 완료**: 이제 8월 9일 이후, 실제 환경에서 `npm run debug:scrape`를 실행하여 인증 및 CSV 다운로드 관련 선택자(selector)만 실제 값으로 교체하면 모든 기능이 정상 동작할 것으로 기대됩니다.
+
+7. 일곱번째 (Flex 메시지 완성 및 전체 흐름 안정화)
+
+### 무엇을 했는가?
+
+- **런타임/브라우저 전환 및 안정화**
+  - `playwright-core` + `@sparticuz/chromium-min` 조합으로 전환, Vercel Node 런타임/타임아웃 지정.
+  - 로컬 디버깅: 시스템 Chrome 사용(채널/경로 폴백), 모든 `page.pause()` 제거.
+
+- **테스트 엔드포인트/스크립트 정리**
+  - `GET /api/test-scrape?mode=login-page` 추가(로그인 페이지 도달/선택자 검증, Gmail/GAS 불필요).
+  - 스크립트: `debug:login`, `debug:scrape`(인증까지만) / `debug:scrape:full`(전체), `test:line:prod/local`(즉시 LINE 전송), `test:csv:send`(로컬 CSV→LINE), `test:flex:send`(CSV가 있으면 최신 Flex 생성 후 전송).
+
+- **Gmail 인증 흐름 개편(40초 갱신 대응)**
+  - 메일 본문 HTML에서 인증 URL 정확 추출(`href` 우선, `data-saferedirecturl` 보조, `&amp;`→`&`).
+  - 인증 메일 폴링(최대 35초), 인증 페이지 이동 직전 웹 코드 재획득 후 입력.
+  - 선택자 확정: 웹 코드 `#code-display`, 입력 `input[name="verifyCode"]`, 체크박스 `#device-checkbox`, 등록 버튼 `#device-auth-otp`.
+
+- **배당 페이지 접근/CSV 다운로드**
+  - 배당 이력 URL: 날짜 범위 지정 시 `/` 인코딩 없이 직접 구성, `period`는 범위 없을 때만 사용.
+  - CSV 버튼: 역할 기반 `getByRole('button', { name: /CSVダウンロード/ })`(폴백 CSS 포함).
+  - 컨텍스트 `acceptDownloads: true` 적용.
+
+- **CSV 파서 공통화(`lib/csv.ts`)**
+  - Shift_JIS → UTF-8, 상단 메타/헤더 동적 탐지(고정 9줄 제거 폐기).
+  - 금액 필드에 콤마가 포함된 케이스 보정(분할된 열 재결합).
+  - 메타 파싱: 기간, 합계(円/USD), 카테고리 소계(例: 国内株式(現物), 米国株式) 추출.
+
+- **Flex 메시지 완성(`lib/flex.ts`)**
+  - 헤더: 아이콘(PNG) + 제목(配当金のお知らせ), 기간 줄. 정렬/여백 편집 포인트 주석 추가.
+  - 본문 항목: 국기(🇺🇸/🇯🇵) + 銘柄名/金額, 2행에 `数量/受渡日/口座`(NISA表記 축약).
+  - 푸터: 카테고리 소계(USD 있을 때 `(xx$) yy円`), 합계(円) 표시.
+  - altText(미리보기): `🎉 配当金が入金されました。合計 {円} / {件数}件` 동적 생성.
+
+- **전송 통일**
+  - 모든 경로를 Flex 전송으로 통일(`sendLineMessage`도 Flex 래핑).
+  - `run-flex-send.ts`: CSV 존재 시 최신 Flex JSON 생성 후 즉시 전송(명령 하나로 미리보기/전송).
+
+### 현재 상태
+
+- 로컬/프로덕션 모두 전체 플로우 점검 가능(인증→CSV→Flex/LINE).
+- 날짜가 없을 때는 TODAY, 개발 중엔 `SCRAPE_FROM/TO/PERIOD`로 범위 지정 가능.
+
+### 다음 단계 제안
+
+- 프로덕션에서 실 실행 후, 필요 시 선택자 미세 조정.
+- 웹훅 보안 강화: LINE 시그니처 검증, GAS 공유 시크릿 헤더.

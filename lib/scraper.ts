@@ -10,6 +10,20 @@ import { parseDividendCsvText } from './csv';
 import { buildDividendFlex } from './flex';
 import { sendFlexMessage } from './notification';
 
+function getTodayJstYmd(): string {
+  const dtf = new Intl.DateTimeFormat('ja-JP', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const parts = dtf.formatToParts(new Date());
+  const y = parts.find(p => p.type === 'year')!.value;
+  const m = parts.find(p => p.type === 'month')!.value;
+  const d = parts.find(p => p.type === 'day')!.value;
+  return `${y}/${m}/${d}`;
+}
+
 export async function checkLoginPage(options?: { prefillCredentials?: boolean }): Promise<{
   ok: boolean;
   title: string;
@@ -330,42 +344,29 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean } = {}):
       };
     }
 
-    // 4. 배당금 이력 페이지로 이동 (날짜/기간 오버라이드: ENV 사용)
+    // 4. 배당금 이력 페이지로 이동 (항상 날짜 파라미터만 사용)
     console.log('Generating dynamic URL for dividend history...');
 
-    // ENV 우선, 없으면 TODAY
+    // ENV 우선, 없으면 오늘 날짜 사용
     const envFrom = process.env.SCRAPE_FROM; // yyyy/mm/dd
     const envTo = process.env.SCRAPE_TO;     // yyyy/mm/dd
-    const envPeriod = process.env.SCRAPE_PERIOD; // e.g., TODAY|THIS_MONTH|LAST_MONTH|ALL
-
-    const from = envFrom || undefined;
-    const to = envTo || undefined;
-    const period = envPeriod || 'TODAY';
 
     let dispositionDateFrom: string;
     let dispositionDateTo: string;
+    const from = envFrom;
+    const to = envTo;
     if (from && to) {
       dispositionDateFrom = from;
       dispositionDateTo = to;
     } else {
-      const today = new Date();
-      const year = today.getFullYear();
-      const month = (today.getMonth() + 1).toString().padStart(2, '0');
-      const day = today.getDate().toString().padStart(2, '0');
-      const todayDate = `${year}/${month}/${day}`;
+      const todayDate = getTodayJstYmd();
       dispositionDateFrom = todayDate;
       dispositionDateTo = todayDate;
     }
 
     const baseUrl = 'https://site.sbisec.co.jp/account/assets/dividends';
-    let dividendUrl: string;
-    if (from && to) {
-      // 날짜 범위 지정 시 period는 제외하고 슬래시 인코딩 없이 직접 구성
-      dividendUrl = `${baseUrl}?dispositionDateFrom=${dispositionDateFrom}&dispositionDateTo=${dispositionDateTo}`;
-    } else {
-      // 범위 미지정 시 period만 사용
-      dividendUrl = `${baseUrl}?period=${period}`;
-    }
+    // 항상 날짜 파라미터만 포함
+    const dividendUrl = `${baseUrl}?dispositionDateFrom=${dispositionDateFrom}&dispositionDateTo=${dispositionDateTo}`;
 
     console.log(`Navigating to: ${dividendUrl}`);
     await page.goto(dividendUrl);
