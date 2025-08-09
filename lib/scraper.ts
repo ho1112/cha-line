@@ -248,7 +248,13 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
 
   try {
     const isDebugMode = process.env.PWDEBUG === '1';
-    const remoteWsEndpoint = process.env.BROWSER_WS_ENDPOINT;
+    // Browserless 설정: ENV에 전체 wss URL 또는 토큰만 들어올 수 있음 → 토큰만 온 경우 URL로 변환
+    const endpointEnv = process.env.BROWSER_WS_ENDPOINT?.trim();
+    const remoteWsEndpoint = endpointEnv
+      ? (/^wss?:\/\//i.test(endpointEnv)
+          ? endpointEnv
+          : `wss://chrome.browserless.io?token=${endpointEnv}`)
+      : undefined;
 
     if (remoteWsEndpoint) {
       console.log('Connecting to remote browser (BROWSER_WS_ENDPOINT)...');
