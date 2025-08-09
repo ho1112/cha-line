@@ -118,6 +118,11 @@ function buildBubble(pageItems: DividendItem[], period?: string | null, totalYen
 export function buildDividendFlex(parsed: DividendCsvParsed): any {
   const items = parsed.items || [];
   const pages = chunkArray(items, 10); // [편집 포인트] 버블당 아이템 수 (기본 10)
+  const count = items.length;
+  const totalYenText = parsed.totalYen != null ? `${parsed.totalYen.toLocaleString('ja-JP')}円` : '';
+  const alt = count > 0 && totalYenText
+    ? `🎉 配当金が入金されました。合計 ${totalYenText} / ${count}件`
+    : '配当金のお知らせ';
   const bubbles = pages.map((p, idx) => buildBubble(
     p,
     parsed.period,
@@ -127,9 +132,9 @@ export function buildDividendFlex(parsed: DividendCsvParsed): any {
   ));
 
   if (bubbles.length === 1) {
-    return { type: 'flex', altText: '配当金のお知らせ', contents: bubbles[0] };
+    return { type: 'flex', altText: alt, contents: bubbles[0] };
   }
-  return { type: 'flex', altText: '配当金のお知らせ', contents: { type: 'carousel', contents: bubbles } };
+  return { type: 'flex', altText: alt, contents: { type: 'carousel', contents: bubbles } };
 }
 
 export function buildTextFlex(text: string, title: string = '알림'): any {
