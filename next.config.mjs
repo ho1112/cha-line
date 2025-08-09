@@ -3,12 +3,8 @@ const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: ['@sparticuz/chromium-min'],
     outputFileTracingIncludes: {
-      '/app/api/dividend-webhook/route': [
-        './node_modules/@sparticuz/chromium-min/bin/**'
-      ],
-      '/app/api/test-scrape/route': [
-        './node_modules/@sparticuz/chromium-min/bin/**'
-      ]
+      'app/api/dividend-webhook/route.ts': ['./node_modules/@sparticuz/chromium-min/bin/**'],
+      'app/api/test-scrape/route.ts': ['./node_modules/@sparticuz/chromium-min/bin/**']
     }
   }
 };
