@@ -4,12 +4,10 @@ const nextConfig = {
     serverComponentsExternalPackages: ['@sparticuz/chromium'],
     outputFileTracingIncludes: {
       'app/api/dividend-webhook/route.ts': [
-        './node_modules/@sparticuz/chromium/bin/**',
-        './node_modules/@sparticuz/chromium/lib/**'
+        './node_modules/@sparticuz/chromium/**'
       ],
       'app/api/test-scrape/route.ts': [
-        './node_modules/@sparticuz/chromium/bin/**',
-        './node_modules/@sparticuz/chromium/lib/**'
+        './node_modules/@sparticuz/chromium/**'
       ]
     }
   }
