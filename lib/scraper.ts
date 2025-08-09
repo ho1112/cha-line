@@ -262,15 +262,11 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
       }
     } else {
       console.log('Running in Vercel/production mode. Launching Sparticuz Chromium...');
-      // Ensure shared libraries are discoverable at runtime (libnss3.so, etc.)
-      try {
-        const libPath = path.join(process.cwd(), 'node_modules', '@sparticuz', 'chromium', 'lib');
-        process.env.LD_LIBRARY_PATH = [process.env.LD_LIBRARY_PATH || '', libPath].filter(Boolean).join(':');
-      } catch {}
       browser = await playwright.chromium.launch({
         args: chromium.args,
         executablePath: await chromium.executablePath(),
         headless: true,
+        env: { ...(process as any).env, ...(chromium as any).env },
       });
     }
 
