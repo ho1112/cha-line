@@ -1,10 +1,7 @@
 {
   "functions": {
     "app/api/**/route.js": {
-      "includeFiles": [
-        "node_modules/@sparticuz/chromium/bin/**",
-        "node_modules/@sparticuz/chromium/lib/**"
-      ]
+      "includeFiles": "node_modules/@sparticuz/chromium/{bin,lib}/**"
     }
   }
 }
