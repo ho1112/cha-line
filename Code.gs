@@ -18,6 +18,11 @@ const TEST_SEARCH_QUERY = 'subject:"cha-line-test" is:unread';
 // 처리 완료 후 추가할 라벨 이름
 const PROCESSED_LABEL = 'cha-line-done';
 
+// JST yyyy/MM/dd 문자열로 변환
+function toYmdJst(date) {
+  return Utilities.formatDate(date, 'Asia/Tokyo', 'yyyy/MM/dd');
+}
+
 
 // =================================================================
 // 운영용 함수 (Production Functions)
@@ -100,30 +105,27 @@ function isWorkingHoursJST() {
  * 스크래핑을 생략하는 테스트 웹훅을 호출합니다.
  */
 function testSearch() {
-  console.log(`[테스트] 시작. 검색 조건: "${TEST_SEARCH_QUERY}"`);
-  
+  console.log('[테스트] 풀 플로우 실행(로그인→CSV→Flex) - 기간: 오늘로부터 한 달 전 ~ 오늘');
   try {
-    const threads = GmailApp.search(TEST_SEARCH_QUERY);
-    
-    if (threads.length > 0) {
-      console.log(`[테스트] ${threads.length}개의 테스트 메일을 찾았습니다. 테스트 웹훅을 호출합니다.`);
-      
-      const response = UrlFetchApp.fetch(TEST_WEBHOOK_URL, {
-        method: 'post',
-        contentType: 'application/json',
-        headers: { 'x-gas-secret': SECRET },
-        payload: JSON.stringify({ source: 'Google Apps Script - Test' })
-      });
+    const today = new Date();
+    const oneMonthAgo = new Date(today);
+    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
 
-      if (response.getResponseCode() == 200) {
-        console.log(`[테스트] 웹훅 호출 성공: ${response.getContentText()}`);
-        console.log('[테스트] Vercel 서버 로그와 LINE 메시지를 확인하세요.');
-      } else {
-        console.error(`[테스트] 웹훅 호출 실패: ${response.getContentText()}`);
-      }
+    const from = toYmdJst(oneMonthAgo);
+    const to = toYmdJst(today);
 
+    const response = UrlFetchApp.fetch(PRODUCTION_WEBHOOK_URL, {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { 'x-gas-secret': SECRET },
+      payload: JSON.stringify({ source: 'Google Apps Script - Test (Full Flow)', from, to })
+    });
+
+    if (response.getResponseCode() == 200) {
+      console.log(`[테스트] 웹훅 호출 성공: ${response.getContentText()}`);
+      console.log('[테스트] Vercel 서버 로그와 LINE 메시지를 확인하세요.');
     } else {
-      console.log('[테스트] 조건에 맞는 메일을 찾지 못했습니다. Gmail에서 "cha-line-test" 제목으로 메일을 보내고, 읽지 않음 처리했는지 확인하세요.');
+      console.error(`[테스트] 웹훅 호출 실패: ${response.getContentText()}`);
     }
   } catch (e) {
     console.error(`[테스트] 에러 발생: ${e.toString()}`);
