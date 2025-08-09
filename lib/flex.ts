@@ -45,18 +45,18 @@ function buildBubble(pageItems: DividendItem[], period?: string | null, totalYen
     {
       type: 'box',
       layout: 'horizontal',
-      justifyContent: 'flex-start',
+      justifyContent: 'center',
       alignItems: 'center',
       spacing: 'sm',
       contents: [
         { type: 'image', url: iconUrl, size: 'xxs', flex: 0 },
-        { type: 'text', text: '配当金のお知らせ', weight: 'bold', size: 'lg', margin: 'sm', flex: 1, align: 'start', wrap: true }
+        { type: 'text', text: '配当金のお知らせ', weight: 'bold', size: 'lg', margin: 'sm', flex: 0, wrap: true }
       ]
     }
   ];
   if (period) {
     // [편집 포인트] 기간 텍스트 스타일(size, color)
-    headerContents.push({ type: 'text', text: `${period}`, size: 'sm', color: '#888888' });
+    headerContents.push({ align: 'center', type: 'text', text: `${period}`, size: 'sm', color: '#888888' });
   }
 
   const bodyBlocks = buildItemBlocks(pageItems);

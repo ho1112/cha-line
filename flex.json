@@ -9,7 +9,7 @@
       {
         "type": "box",
         "layout": "horizontal",
-        "justifyContent": "flex-start",
+        "justifyContent": "center",
         "alignItems": "center",
         "spacing": "sm",
         "contents": [
@@ -25,13 +25,13 @@
             "weight": "bold",
             "size": "lg",
             "margin": "sm",
-            "flex": 1,
-            "align": "start",
+            "flex": 0,
             "wrap": true
           }
         ]
       },
       {
+        "align": "center",
         "type": "text",
         "text": "2025/8/1-2025/8/6",
         "size": "sm",
