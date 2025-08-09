@@ -20,13 +20,19 @@ export async function sendLineMessage(dividendData: DividendData): Promise<void>
 
   const messageText = `새로운 배당금이 입금되었습니다!\n\n[상세 내역]\n${dividendData.text}`;
 
-  const message: Message = {
-    type: 'text',
-    text: messageText,
+  const flexMessage: any = {
+    type: 'flex',
+    altText: '배당 알림',
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      header: { type: 'box', layout: 'vertical', contents: [{ type: 'text', text: '배당 알림', weight: 'bold', size: 'lg' }] },
+      body: { type: 'box', layout: 'vertical', spacing: 'md', contents: messageText.split('\n').map((t) => ({ type: 'text', text: t, wrap: true })) },
+    },
   };
 
   try {
-    await lineClient.pushMessage(userId, message);
+    await lineClient.pushMessage(userId, flexMessage as Message);
     console.log('Successfully sent dividend notification to LINE.');
   } catch (error: any) {
     console.error('Failed to send LINE message:', error.originalError?.response?.data);
@@ -51,5 +57,26 @@ export async function sendErrorMessage(errorMessage: string): Promise<void> {
     console.log('Successfully sent error message to LINE.');
   } catch (error: any) {
     console.error('Failed to send error message to LINE:', error.originalError?.response?.data);
+  }
+}
+
+export async function sendFlexMessage(contents: any, altText: string = '배당 알림'): Promise<void> {
+  const userId = process.env.MY_LINE_USER_ID;
+  if (!userId) {
+    console.error('MY_LINE_USER_ID is not set.');
+    return;
+  }
+
+  const flexMessage: any =
+    contents && contents.type === 'flex'
+      ? contents
+      : { type: 'flex', altText, contents };
+
+  try {
+    await lineClient.pushMessage(userId, flexMessage as Message);
+    console.log('Successfully sent FLEX message to LINE.');
+  } catch (error: any) {
+    console.error('Failed to send FLEX message to LINE:', error.originalError?.response?.data || error);
+    throw new Error('Failed to send FLEX message.');
   }
 }

@@ -2,15 +2,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { scrapeDividend } from '@/lib/scraper';
-import { sendLineMessage, sendErrorMessage } from '../../../lib/notification';
-import { Client } from '@line/bot-sdk';
+import { sendLineMessage, sendErrorMessage } from '@/lib/notification';
 
-const config = {
-  channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN!,
-  channelSecret: process.env.LINE_CHANNEL_SECRET!,
-};
-
-const client = new Client(config);
+export const runtime = 'nodejs';
+export const maxDuration = 60; // seconds
 
 export async function POST(request: NextRequest) {
   // LINE의 웹훅인지, GAS의 트리거인지 판별

@@ -1,0 +1,215 @@
+{
+  "type": "bubble",
+  "size": "mega",
+  "header": {
+    "type": "box",
+    "layout": "vertical",
+    "paddingBottom": "xs",
+    "contents": [
+      {
+        "type": "box",
+        "layout": "horizontal",
+        "justifyContent": "flex-start",
+        "alignItems": "center",
+        "spacing": "sm",
+        "contents": [
+          {
+            "type": "image",
+            "url": "https://cha-line.vercel.app/icon.png",
+            "size": "xxs",
+            "flex": 0
+          },
+          {
+            "type": "text",
+            "text": "配当金のお知らせ",
+            "weight": "bold",
+            "size": "lg",
+            "margin": "sm",
+            "flex": 1,
+            "align": "start",
+            "wrap": true
+          }
+        ]
+      },
+      {
+        "type": "text",
+        "text": "2025/8/1-2025/8/6",
+        "size": "sm",
+        "color": "#888888"
+      }
+    ]
+  },
+  "body": {
+    "type": "box",
+    "layout": "vertical",
+    "spacing": "xs",
+    "contents": [
+      {
+        "type": "box",
+        "layout": "horizontal",
+        "contents": [
+          {
+            "type": "text",
+            "text": "🇺🇸 JPモルガン エクイティ プレミアム ETF JEPI",
+            "weight": "bold",
+            "flex": 4,
+            "wrap": true
+          },
+          {
+            "type": "text",
+            "text": "754.71円",
+            "align": "end",
+            "flex": 3
+          }
+        ]
+      },
+      {
+        "type": "text",
+        "text": "数量: 20 / 受渡日: 2025/8/6 / 特定/一般",
+        "size": "xs",
+        "color": "#888888",
+        "wrap": true
+      },
+      {
+        "type": "box",
+        "layout": "horizontal",
+        "contents": [
+          {
+            "type": "text",
+            "text": "🇺🇸 JPM NDAQ エクイティプレミア インカム ETF JEPQ",
+            "weight": "bold",
+            "flex": 4,
+            "wrap": true
+          },
+          {
+            "type": "text",
+            "text": "5,220.24円",
+            "align": "end",
+            "flex": 3
+          }
+        ]
+      },
+      {
+        "type": "text",
+        "text": "数量: 112 / 受渡日: 2025/8/6 / 特定/一般",
+        "size": "xs",
+        "color": "#888888",
+        "wrap": true
+      },
+      {
+        "type": "box",
+        "layout": "horizontal",
+        "contents": [
+          {
+            "type": "text",
+            "text": "🇯🇵 グローバルＸ　ゲーム＆アニメ?日本株式　ＥＴＦ 2640",
+            "weight": "bold",
+            "flex": 4,
+            "wrap": true
+          },
+          {
+            "type": "text",
+            "text": "933円",
+            "align": "end",
+            "flex": 3
+          }
+        ]
+      },
+      {
+        "type": "text",
+        "text": "数量: 30 / 受渡日: 2025/8/1 / 特定/一般",
+        "size": "xs",
+        "color": "#888888",
+        "wrap": true
+      },
+      {
+        "type": "box",
+        "layout": "horizontal",
+        "contents": [
+          {
+            "type": "text",
+            "text": "🇺🇸 インベスコ QQQ トラストシリーズ1 ETF QQQ",
+            "weight": "bold",
+            "flex": 4,
+            "wrap": true
+          },
+          {
+            "type": "text",
+            "text": "1,501.7円",
+            "align": "end",
+            "flex": 3
+          }
+        ]
+      },
+      {
+        "type": "text",
+        "text": "数量: 19 / 受渡日: 2025/8/1 / NISA成長",
+        "size": "xs",
+        "color": "#888888",
+        "wrap": true
+      }
+    ]
+  },
+  "footer": {
+    "type": "box",
+    "layout": "vertical",
+    "spacing": "sm",
+    "contents": [
+      {
+        "type": "separator"
+      },
+      {
+        "type": "box",
+        "layout": "horizontal",
+        "contents": [
+          {
+            "type": "text",
+            "text": "国内株式(現物)",
+            "flex": 2
+          },
+          {
+            "type": "text",
+            "text": "933円",
+            "align": "end",
+            "flex": 3
+          }
+        ]
+      },
+      {
+        "type": "box",
+        "layout": "horizontal",
+        "contents": [
+          {
+            "type": "text",
+            "text": "米国株式",
+            "flex": 2
+          },
+          {
+            "type": "text",
+            "text": "(51.05$) 7,476.66円",
+            "align": "end",
+            "flex": 3
+          }
+        ]
+      },
+      {
+        "type": "box",
+        "layout": "horizontal",
+        "contents": [
+          {
+            "type": "text",
+            "text": "合計",
+            "weight": "bold",
+            "flex": 2
+          },
+          {
+            "type": "text",
+            "text": "8,409.66円",
+            "align": "end",
+            "flex": 3
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -3,7 +3,9 @@
 // 사용법: LINE webhook URL을 이 API 주소로 설정하고, Google Apps Script의 fetchUrl에 이 API의 주소를 입력하여 호출합니다.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { sendLineMessage, sendErrorMessage } from '../../../lib/notification';
+import { sendLineMessage, sendErrorMessage } from '@/lib/notification';
+export const runtime = 'nodejs';
+export const maxDuration = 30;
 import { WebhookRequestBody } from '@line/bot-sdk';
 
 export async function POST(request: NextRequest) {

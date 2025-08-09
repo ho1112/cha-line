@@ -2,15 +2,23 @@ import dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
 
 import { scrapeDividend } from './lib/scraper';
+import { sendLineMessage } from './lib/notification';
 
 (async () => {
   console.log('Starting Playwright debug script...');
   try {
-    // `scrapeDividend` 함수를 직접 호출합니다.
-    const result = await scrapeDividend();
+    // AUTH_ONLY=0 이면 전체 플로우 실행, 그 외에는 인증까지만
+    const debugAuthOnly = process.env.AUTH_ONLY !== '0';
+    const result = await scrapeDividend({ debugAuthOnly });
     console.log('\n--- Scraping Result ---');
     console.log(result);
     console.log('-----------------------\n');
+
+    if (process.env.SEND_LINE === '1' && result && result.text) {
+      console.log('Sending parsed CSV result to LINE...');
+      await sendLineMessage(result);
+      console.log('LINE message sent.');
+    }
   } catch (error) {
     console.error('\n--- An error occurred ---');
     console.error(error);

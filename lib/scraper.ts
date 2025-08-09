@@ -4,11 +4,82 @@ import playwright, { type Browser } from 'playwright-core';
 import chromium from '@sparticuz/chromium-min';
 import { google } from 'googleapis';
 import * as fs from 'fs';
-import * as path from 'path';
 import { parse } from 'csv-parse/sync';
 import * as iconv from 'iconv-lite';
+import { parseDividendCsvText } from './csv';
+import { buildDividendFlex } from './flex';
+import { sendFlexMessage } from './notification';
 
-async function getAuthUrlFromGmail(): Promise<string | null> {
+export async function checkLoginPage(options?: { prefillCredentials?: boolean }): Promise<{
+  ok: boolean;
+  title: string;
+  selectors: { [key: string]: boolean };
+  url: string;
+  prefilled?: boolean;
+}> {
+  let browser: Browser | null = null;
+  const loginUrl = 'https://www.sbisec.co.jp/ETGate/?_ControlID=WPLETlgR001Control&_PageID=WPLETlgR001Rlgn50&_DataStoreID=DSWPLETlgR001Control&_ActionID=login&getFlg=on';
+  try {
+    const isDebugMode = process.env.PWDEBUG === '1';
+    if (isDebugMode) {
+      const localChromePath = process.env.LOCAL_CHROME_PATH;
+      if (localChromePath) {
+        browser = await playwright.chromium.launch({ headless: false, executablePath: localChromePath });
+      } else {
+        try {
+          browser = await playwright.chromium.launch({ headless: false, channel: 'chrome' });
+        } catch (e) {
+          // macOS 기본 경로로 폴백
+          browser = await playwright.chromium.launch({ headless: false, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
+        }
+      }
+    } else {
+      browser = await playwright.chromium.launch({
+        args: chromium.args,
+        executablePath: await chromium.executablePath(),
+        headless: (chromium as any).headless,
+      });
+    }
+
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await page.goto(loginUrl, { waitUntil: 'domcontentloaded' });
+
+    const requiredSelectors = [
+      'input[name="user_id"]',
+      'input[name="user_password"]',
+      'button[name="ACT_loginHome"]',
+    ];
+
+    const results: { [key: string]: boolean } = {};
+    for (const sel of requiredSelectors) {
+      results[sel] = (await page.$(sel)) !== null;
+    }
+
+    // 선택적으로 자격증명만 입력(로그인 버튼은 누르지 않음)
+    let prefilled = false;
+    if (options?.prefillCredentials) {
+      const userId = process.env.SBI_ID;
+      const userPw = process.env.SBI_PASSWORD;
+      if (userId && userPw) {
+        await page.fill('input[name="user_id"]', userId);
+        await page.fill('input[name="user_password"]', userPw);
+        prefilled = true;
+      }
+    }
+
+    const title = await page.title();
+    return { ok: Object.values(results).every(Boolean), title, selectors: results, url: loginUrl, prefilled };
+  } catch (e) {
+    return { ok: false, title: '', selectors: {}, url: loginUrl, prefilled: false };
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
+  }
+}
+
+async function getAuthUrlFromGmail(options?: { sinceMs?: number; lastSeenMessageId?: string | null }): Promise<{ url: string; messageId: string } | null> {
   console.log('Fetching Auth URL from Gmail...');
   try {
     // 1. 환경 변수에서 OAuth 2.0 정보 가져오기
@@ -28,11 +99,11 @@ async function getAuthUrlFromGmail(): Promise<string | null> {
     // 3. Gmail API 클라이언트 생성
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
-    // 4. SBI 증권 인증 URL 이메일 검색 (제목 변경)
+    // 4. SBI 증권 인증 URL 이메일 검색 (읽음 여부 무관, 최근 n개 확인)
     const listResponse = await gmail.users.messages.list({
       userId: 'me',
-      q: 'from:info@sbisec.co.jp subject:認証コード入力画面のお知らせ is:unread',
-      maxResults: 1,
+      q: 'from:info@sbisec.co.jp subject:認証コード入力画面のお知らせ',
+      maxResults: 5,
     });
 
     if (!listResponse.data.messages || listResponse.data.messages.length === 0) {
@@ -40,17 +111,31 @@ async function getAuthUrlFromGmail(): Promise<string | null> {
       return null;
     }
 
-    const messageId = listResponse.data.messages[0].id!;
-
-    // 5. 이메일 내용 가져오기
-    const messageResponse = await gmail.users.messages.get({
-      userId: 'me',
-      id: messageId,
-      format: 'full',
-    });
-
-    const payload = messageResponse.data.payload;
-    if (!payload) throw new Error('Email payload is empty.');
+    // 5. 후보 메시지들에서 sinceMs 이후 수신된 메시지를 선택 (가장 최신 우선)
+    const sinceMs = options?.sinceMs ?? 0;
+    const lastSeen = options?.lastSeenMessageId ?? null;
+    const skewMs = 1000; // 클럭 오차 보정
+    let pickedId: string | null = null;
+    let pickedPayload: any = null;
+    for (const m of listResponse.data.messages) {
+      const id = m.id!;
+      if (lastSeen && id === lastSeen) continue;
+      const resp = await gmail.users.messages.get({ userId: 'me', id, format: 'full' });
+      const payload = resp.data.payload;
+      const internalDateStr: any = (resp.data as any).internalDate; // epoch ms (string)
+      const internalDate = internalDateStr ? Number(internalDateStr) : 0;
+      if (payload && internalDate >= sinceMs - skewMs) {
+        pickedId = id;
+        pickedPayload = payload;
+        break;
+      }
+    }
+    if (!pickedId || !pickedPayload) {
+      console.log('No matching auth URL email found after trigger time.');
+      return null;
+    }
+    const messageId = pickedId;
+    const payload = pickedPayload;
 
     // 6. 이메일 본문에서 인증 URL 추출 (로직 변경)
     const findTextPart = (parts: any[]): any => {
@@ -75,22 +160,43 @@ async function getAuthUrlFromGmail(): Promise<string | null> {
     }
 
     if (!textPart || !textPart.body || !textPart.body.data) {
-      const availableMimeTypes = payload.parts?.map(p => p.mimeType).join(', ') || payload.mimeType;
+      const availableMimeTypes = payload.parts?.map((p: any) => p.mimeType).join(', ') || payload.mimeType;
       throw new Error(`Could not find 'text/plain' or 'text/html' part. Available types: [${availableMimeTypes}]`);
     }
 
     const body = textPart.body.data;
     const decodedBody = Buffer.from(body, 'base64').toString('utf-8');
 
-    // URL을 추출하기 위한 정규식 (https로 시작하고 큰따옴표/공백 전까지)
-    const urlMatch = decodedBody.match(/(https:\/\/[^\s"]+)/);
-    if (!urlMatch || !urlMatch[0]) {
-      throw new Error('Could not find the auth URL in the email body.');
+    // HTML/PLAIN 분기: HTML인 경우 a[href]에서 직접 추출, 아니면 텍스트에서 패턴 매칭
+    const isHtml = (textPart.mimeType === 'text/html') || (payload.mimeType === 'text/html');
+    let authUrl: string | null = null;
+
+    if (isHtml) {
+      // <a href="https://m.sbisec.co.jp/deviceAuthentication/input?...&amp;...">
+      const hrefMatch = decodedBody.match(/href="(https:\/\/m\.sbisec\.co\.jp\/deviceAuthentication\/input[^\"]+)"/i);
+      if (hrefMatch && hrefMatch[1]) {
+        authUrl = hrefMatch[1].replace(/&amp;/g, '&');
+      } else {
+        // 보조: data-saferedirecturl 안의 q 파라미터에서 추출 시도
+        const saferedirectMatch = decodedBody.match(/data-saferedirecturl="https:\/\/www\.google\.com\/url\?q=(https?:[^"&]+)["&]/i);
+        if (saferedirectMatch && saferedirectMatch[1]) {
+          // HTML 엔티티 디코드
+          const candidate = saferedirectMatch[1].replace(/&amp;/g, '&');
+          authUrl = candidate;
+        }
+      }
+    } else {
+      // 텍스트 본문에서 직접 URL 추출 (목표 도메인 우선)
+      const specificMatch = decodedBody.match(/(https:\/\/m\.sbisec\.co\.jp\/deviceAuthentication\/input[^\s\"]+)/);
+      const genericMatch = decodedBody.match(/(https:\/\/[^\s\"]+)/);
+      authUrl = (specificMatch && specificMatch[0]) || (genericMatch && genericMatch[0]) || null;
     }
 
-    const authUrl = urlMatch[0];
+    if (!authUrl) {
+      throw new Error('Could not find the auth URL in the email body.');
+    }
     console.log(`Fetched Auth URL: ${authUrl}`);
-    return authUrl;
+    return { url: authUrl, messageId };
 
   } catch (error: any) {
     console.error('Failed to get auth URL from Gmail:', error);
@@ -101,12 +207,26 @@ async function getAuthUrlFromGmail(): Promise<string | null> {
   }
 }
 
+async function waitForAuthUrlFromGmail(options?: { timeoutMs?: number; pollIntervalMs?: number; sinceMs?: number }): Promise<{ url: string; messageId: string }> {
+  const timeoutMs = options?.timeoutMs ?? 35000; // 코드는 40초 주기 → 여유를 두고 35초 타임아웃
+  const pollMs = options?.pollIntervalMs ?? 1500;
+  const sinceMs = options?.sinceMs ?? 0;
+  const start = Date.now();
+  let lastSeen: string | null = null;
+  while (Date.now() - start < timeoutMs) {
+    const found = await getAuthUrlFromGmail({ sinceMs, lastSeenMessageId: lastSeen }).catch(() => null);
+    if (found) return found;
+    await new Promise(res => setTimeout(res, pollMs));
+  }
+  throw new Error(`Timed out waiting for auth URL from Gmail (>${timeoutMs}ms)`);
+}
+
 interface DividendResult {
   text: string;
   source: string;
 }
 
-export async function scrapeDividend(): Promise<DividendResult | null> {
+export async function scrapeDividend(options: { debugAuthOnly?: boolean } = {}): Promise<DividendResult | null> {
   let browser: Browser | null = null;
   console.log('Starting dividend scraping process...');
 
@@ -114,26 +234,34 @@ export async function scrapeDividend(): Promise<DividendResult | null> {
     const isDebugMode = process.env.PWDEBUG === '1';
 
     if (isDebugMode) {
-      console.log('Running in local debug mode. Launching local browser...');
-      browser = await playwright.chromium.launch({ headless: false });
+      console.log('Running in local debug mode. Launching system Chrome...');
+      const localChromePath = process.env.LOCAL_CHROME_PATH;
+      if (localChromePath) {
+        browser = await playwright.chromium.launch({ headless: false, executablePath: localChromePath });
+      } else {
+        try {
+          browser = await playwright.chromium.launch({ headless: false, channel: 'chrome' });
+        } catch (e) {
+          browser = await playwright.chromium.launch({ headless: false, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
+        }
+      }
     } else {
-      console.log('Running in Vercel/production mode. Launching Spaticuz Chromium...');
+      console.log('Running in Vercel/production mode. Launching Sparticuz Chromium...');
       browser = await playwright.chromium.launch({
         args: chromium.args,
-        executablePath: await chromium.executablePath(process.env.NODE_ENV === 'development' ? undefined : 'https://github.com/Sparticuz/chromium/releases/download/v123.0.1/chromium-v123.0.1-pack.tar'),
+        executablePath: await chromium.executablePath(),
         headless: (chromium as any).headless,
       });
     }
 
-    const context = await browser.newContext();
+    const context = await browser.newContext({ acceptDownloads: true });
     const page = await context.newPage();
 
     // 1. SBI 증권 로그인 페이지로 이동
     console.log('Navigating to SBI login page...');
     await page.goto('https://www.sbisec.co.jp/ETGate/?_ControlID=WPLETlgR001Control&_PageID=WPLETlgR001Rlgn50&_DataStoreID=DSWPLETlgR001Control&_ActionID=login&getFlg=on');
 
-    // ★★★ 디버깅을 위해 여기서 실행을 일시 중지합니다. ★★★
-    await page.pause();
+    // 로그인 페이지 진입 완료
 
     // 2. 아이디와 비밀번호 입력
     await page.fill('input[name="user_id"]', process.env.SBI_ID!);
@@ -150,62 +278,94 @@ export async function scrapeDividend(): Promise<DividendResult | null> {
     console.log('Starting new device authentication flow...');
 
     // "Eメールを送信する" 버튼 클릭하여 인증 URL 이메일 발송 요청
+    // 인증 이메일 발송 버튼 클릭 직전
     await page.click('button:has-text("Eメールを送信する")');
     console.log('Clicked "Send Email" button.');
 
-    // 웹사이트의 인증 코드와 이메일의 인증 URL을 동시에 가져오기
-    const [webAuthCode, authUrl] = await Promise.all([
-        // 작업 (A): 웹사이트에서 화면에 표시된 인증 코드 가져오기
-        (async () => {
-            // ★★★ 중요: 아래 선택자는 실제 페이지와 다를 수 있습니다. ★★★
-            const codeElement = page.locator('#device_auth_code_display_element');
-            await codeElement.waitFor();
-            const code = await codeElement.textContent();
-            if (!code) throw new Error('Could not find auth code on the web page.');
-            console.log(`Auth code from web: ${code.trim()}`);
-            return code.trim();
-        })(),
-        // 작업 (B): 이메일에서 인증 URL 가져오기
-        getAuthUrlFromGmail()
-    ]);
-
-    if (!authUrl) {
-        throw new Error('Failed to get auth URL from Gmail.');
-    }
+    // 이메일에서 인증 URL을 기다림 (폴링 + 타임아웃)
+    // 트리거 시각 이후에 도착한 메일만 대상
+    const triggerMs = Date.now();
+    const found = await waitForAuthUrlFromGmail({ sinceMs: triggerMs });
+    const authUrl = found.url;
 
     // 4. 새 탭에서 인증 URL 열고 코드 입력
     console.log(`Opening auth URL in a new tab: ${authUrl}`);
     const authPage = await context.newPage();
     await authPage.goto(authUrl);
 
+    // 인증 페이지 도착
+
     // ★★★ 중요: 아래 선택자는 실제 페이지와 다를 수 있습니다. ★★★
-    await authPage.fill('input[name="authentication_code_input"]', webAuthCode);
+    // 코드는 40초마다 변경되므로, 입력 직전에 최신 값을 다시 읽어온다
+    const codeElement = page.locator('#code-display');
+    await codeElement.waitFor();
+    const latestCode = (await codeElement.textContent())?.trim();
+    if (!latestCode) throw new Error('Could not read the latest auth code from the web page.');
+    await authPage.fill('input[name="verifyCode"]', latestCode);
     await authPage.click('button:has-text("認証する")');
     console.log('Submitted auth code on the auth page.');
     await authPage.close(); // 인증 후 탭 닫기
 
     // 5. 원래 페이지로 돌아와서 최종 등록
     console.log('Returned to the original page to finalize registration.');
-    // ★★★ 중요: 아래 선택자는 실제 페이지와 다를 수 있습니다. ★★★
-    await page.check('input[name="confirmation_checkbox"]'); // "確認しました" 체크박스
-    await page.click('button:has-text("デバイスを登録する")'); // "デバイスを登録する" 버튼
+    // 체크박스 체크 → 버튼 활성화 → 등록 버튼 클릭
+    await page.waitForSelector('#device-checkbox');
+    if (!(await page.isChecked('#device-checkbox'))) {
+      await page.check('#device-checkbox');
+    }
+
+    await page.waitForSelector('#device-auth-otp');
+    // 최종 등록 버튼 클릭 직전
+    await page.click('#device-auth-otp');
     console.log('Device registration complete.');
 
     // 최종적으로 페이지 이동이 완료될 때까지 기다립니다.
     await page.waitForNavigation({ waitUntil: 'domcontentloaded' });
 
-    // 4. 배당금 이력 페이지로 이동 (오늘 날짜 기준으로 동적 URL 생성)
-    console.log('Generating dynamic URL for today\'s dividend history...');
+    if (options.debugAuthOnly) {
+      console.log('[DEBUG] Auth-only mode enabled, skipping CSV download.');
+      return {
+        text: '장치 인증까지 완료(디버그 모드).',
+        source: 'SBI Securities (AuthOnly)'
+      };
+    }
 
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = (today.getMonth() + 1).toString().padStart(2, '0');
-    const day = today.getDate().toString().padStart(2, '0');
+    // 4. 배당금 이력 페이지로 이동 (날짜/기간 오버라이드: ENV 사용)
+    console.log('Generating dynamic URL for dividend history...');
 
-    const todayDate = `${year}/${month}/${day}`;
+    // ENV 우선, 없으면 TODAY
+    const envFrom = process.env.SCRAPE_FROM; // yyyy/mm/dd
+    const envTo = process.env.SCRAPE_TO;     // yyyy/mm/dd
+    const envPeriod = process.env.SCRAPE_PERIOD; // e.g., TODAY|THIS_MONTH|LAST_MONTH|ALL
 
-    // 시작일, 종료일, 그리고 period=TODAY를 모두 포함한 URL 생성
-    const dividendUrl = `https://site.sbisec.co.jp/account/assets/dividends?dispositionDateFrom=${todayDate}&dispositionDateTo=${todayDate}&period=TODAY`;
+    const from = envFrom || undefined;
+    const to = envTo || undefined;
+    const period = envPeriod || 'TODAY';
+
+    let dispositionDateFrom: string;
+    let dispositionDateTo: string;
+    if (from && to) {
+      dispositionDateFrom = from;
+      dispositionDateTo = to;
+    } else {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = (today.getMonth() + 1).toString().padStart(2, '0');
+      const day = today.getDate().toString().padStart(2, '0');
+      const todayDate = `${year}/${month}/${day}`;
+      dispositionDateFrom = todayDate;
+      dispositionDateTo = todayDate;
+    }
+
+    const baseUrl = 'https://site.sbisec.co.jp/account/assets/dividends';
+    let dividendUrl: string;
+    if (from && to) {
+      // 날짜 범위 지정 시 period는 제외하고 슬래시 인코딩 없이 직접 구성
+      dividendUrl = `${baseUrl}?dispositionDateFrom=${dispositionDateFrom}&dispositionDateTo=${dispositionDateTo}`;
+    } else {
+      // 범위 미지정 시 period만 사용
+      dividendUrl = `${baseUrl}?period=${period}`;
+    }
 
     console.log(`Navigating to: ${dividendUrl}`);
     await page.goto(dividendUrl);
@@ -214,10 +374,19 @@ export async function scrapeDividend(): Promise<DividendResult | null> {
     console.log('Scraping dividend information via CSV download...');
 
     // CSV 다운로드 버튼 클릭과 다운로드 이벤트를 동시에 기다립니다.
+    // 1차: 역할 기반 버튼(접근성 네임)으로 매칭, 2차: CSS 텍스트 매칭으로 폴백
+    let downloadButton = page.getByRole('button', { name: /CSVダウンロード/ });
+    try {
+      await downloadButton.waitFor({ state: 'visible' });
+    } catch {
+      // 폴백 셀렉터
+      downloadButton = page.locator('button.text-xs.link-light:has-text("CSVダウンロード")');
+      await downloadButton.waitFor({ state: 'visible' });
+    }
+
     const [download] = await Promise.all([
-        page.waitForEvent('download'),
-        // ★★★ 중요: 아래 선택자는 실제 페이지와 다를 수 있습니다. Inspector로 정확한 값을 찾아야 합니다. ★★★
-        page.click('#csv_download_button'),
+      page.waitForEvent('download'),
+      downloadButton.click(),
     ]);
 
     // 다운로드된 파일의 임시 경로를 가져옵니다.
@@ -230,10 +399,8 @@ export async function scrapeDividend(): Promise<DividendResult | null> {
     // CSV 파일을 Shift_JIS 인코딩으로 읽고 파싱합니다.
     const fileBuffer = fs.readFileSync(tempFilePath);
     const csvData = iconv.decode(fileBuffer, 'Shift_JIS');
-    const records = parse(csvData, {
-        columns: true, // 첫 번째 줄을 헤더로 사용
-        skip_empty_lines: true,
-    });
+    const parsed = parseDividendCsvText(csvData);
+    const records = parsed.items;
 
     // 임시 파일을 삭제합니다.
     fs.unlinkSync(tempFilePath);
@@ -248,20 +415,14 @@ export async function scrapeDividend(): Promise<DividendResult | null> {
     }
 
     // 파싱된 데이터를 기반으로 알림 메시지를 생성합니다.
-    const dividendMessages = records.map((record: any) => {
-        // ★★★ 중요: 아래 키(key) 값들은 실제 CSV 헤더와 다를 수 있습니다. ★★★
-        const stockName = record['銘柄名'];
-        const amount = record['受取額(税引後・円)'];
-        const date = record['受渡日'];
-        return `- ${stockName}: ${amount}원 (입금일: ${date})`;
-    });
-
-    const combinedMessage = dividendMessages.join('\n');
     console.log(`Scraping finished. Found ${records.length} items.`);
-    
+
+    // 운영도 Flex로 전송
+    const flex = buildDividendFlex(parsed);
+    await sendFlexMessage(flex, '배당 알림');
     return {
-        text: combinedMessage,
-        source: 'SBI Securities (CSV)'
+      text: 'Flex message sent',
+      source: 'SBI Securities (CSV)'
     };
 
   } catch (error) {

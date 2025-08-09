@@ -4,39 +4,32 @@
 // 결과: 성공 시 2FA 코드를, 실패 시 에러 메시지를 브라우저에 JSON 형태로 보여줍니다.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { scrapeDividend } from '@/lib/scraper';
+import { scrapeDividend, checkLoginPage } from '@/lib/scraper';
+export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
-  console.log('Executing scraping test in "get-2fa-code" mode...');
-  
-  try {
-    // 1. 스크래핑 함수 실행 (testMode 제거)
-    const result = await scrapeDividend();
+  const { searchParams } = new URL(request.url);
+  const mode = searchParams.get('mode') || 'login-page';
 
-    if (result) {
-      // 2. 성공 시, 스크래핑 결과를 브라우저에 반환
-      console.log('Scraping test successful.');
-      return NextResponse.json({
-        status: 'success',
-        message: '스크래핑 테스트에 성공했습니다.',
-        data: result,
-      });
-    } else {
-      // scrapeDividend가 null을 반환한 경우
-      console.log('Scraping test finished, but no data was returned.');
-      return NextResponse.json({
-        status: 'no_action',
-        message: '스크래핑은 정상적으로 실행되었으나, 반환된 데이터가 없습니다.',
-      });
+  try {
+    if (mode === 'login-page') {
+      const prefill = searchParams.get('prefill') === 'true';
+      const result = await checkLoginPage({ prefillCredentials: prefill });
+      return NextResponse.json({ status: result.ok ? 'success' : 'fail', mode, result });
     }
 
+    if (mode === 'full') {
+      const adminSecret = request.headers.get('x-admin-secret');
+      if (!adminSecret || adminSecret !== process.env.ADMIN_SECRET) {
+        return NextResponse.json({ status: 'unauthorized', message: 'Invalid admin secret' }, { status: 401 });
+      }
+      const result = await scrapeDividend();
+      return NextResponse.json({ status: result ? 'success' : 'no_action', mode, result });
+    }
+
+    return NextResponse.json({ status: 'error', message: `Unknown mode: ${mode}` }, { status: 400 });
   } catch (error: any) {
-    console.error('Scraping test (get-2fa-code) failed:', error);
-    // 3. 에러 발생 시, 에러 정보를 브라우저에 반환
-    return NextResponse.json({
-      status: 'error',
-      message: '2FA 코드 가져오기 테스트 중 에러가 발생했습니다.',
-      error: error.message,
-    }, { status: 500 });
+    return NextResponse.json({ status: 'error', message: error.message }, { status: 500 });
   }
 }
