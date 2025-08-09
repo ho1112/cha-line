@@ -264,7 +264,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
       browser = await playwright.chromium.launch({
         args: chromium.args,
         executablePath: await chromium.executablePath(),
-        headless: (chromium as any).headless,
+        headless: true,
       });
     }
 
