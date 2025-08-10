@@ -318,9 +318,52 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     // 3. 새로운 디바이스 인증 로직 (2025/8/9 이후 사양)
     console.log('Starting new device authentication flow...');
 
-    // "Eメールを送信する" 버튼 클릭하여 인증 URL 이메일 발송 요청
-    // 인증 이메일 발송 버튼 클릭 직전
-    await page.click('button:has-text("Eメールを送信する")');
+    // 현재 페이지 상태 확인 및 디버깅
+    console.log('Current page URL:', await page.url());
+    console.log('Current page title:', await page.title());
+    
+    // 페이지 로딩 완료 대기
+    await page.waitForLoadState('networkidle');
+    
+    // 페이지 스크린샷 저장 (디버깅용)
+    try {
+      await page.screenshot({ path: '/tmp/debug_page.png' });
+      console.log('Debug screenshot saved to /tmp/debug_page.png');
+    } catch (e) {
+      console.log('Could not save screenshot:', e);
+    }
+
+    // "Eメールを送信する" 버튼 찾기 시도 (여러 방법으로)
+    let emailButton = null;
+    try {
+      // 1차: 텍스트 기반
+      emailButton = page.locator('button:has-text("Eメールを送信する")');
+      await emailButton.waitFor({ state: 'visible', timeout: 5000 });
+      console.log('Found email button by text');
+    } catch (e) {
+      console.log('Text-based button not found, trying alternative selectors...');
+      try {
+        // 2차: aria-label 기반
+        emailButton = page.locator('[aria-label*="メール"], [aria-label*="email"]');
+        await emailButton.waitFor({ state: 'visible', timeout: 5000 });
+        console.log('Found email button by aria-label');
+      } catch (e2) {
+        try {
+          // 3차: 일반적인 버튼 선택자
+          emailButton = page.locator('button').filter({ hasText: /メール|email/i });
+          await emailButton.waitFor({ state: 'visible', timeout: 5000 });
+          console.log('Found email button by generic selector');
+        } catch (e3) {
+          console.log('All button finding methods failed. Current page content:');
+          const pageContent = await page.content();
+          console.log('Page HTML preview:', pageContent.substring(0, 1000));
+          throw new Error('Could not find email button on the page');
+        }
+      }
+    }
+
+    // 버튼 클릭
+    await emailButton.click();
     console.log('Clicked "Send Email" button.');
 
     // 이메일에서 인증 URL을 기다림 (폴링 + 타임아웃)
