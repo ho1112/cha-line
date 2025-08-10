@@ -4,7 +4,7 @@
       "maxDuration": 60
     }
   },
-  "buildCommand": "npm install && npm run build && npx playwright install chromium"
+  "buildCommand": "npm run vercel-build"
 }
 
 

@@ -6,6 +6,7 @@
     "dev": "next dev",
     "dev:debug": "PWDEBUG=1 next dev",
     "build": "next build",
+    "vercel-build": "npx playwright install chromium && next build",
     "start": "next start",
     "lint": "next lint",
     "postinstall": "npx playwright install chromium",
