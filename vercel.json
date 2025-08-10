@@ -4,7 +4,10 @@
       "maxDuration": 60
     }
   },
-  "buildCommand": "npm run vercel-build"
+  "buildCommand": "npm run vercel-build",
+  "env": {
+    "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD": "0"
+  }
 }
 
 

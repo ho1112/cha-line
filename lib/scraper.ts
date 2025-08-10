@@ -1,6 +1,7 @@
 // /lib/scraper.ts
 
-import { chromium, type Browser } from 'playwright';
+import edgeChromium from 'chrome-aws-lambda';
+import puppeteer from 'puppeteer-core';
 import { google } from 'googleapis';
 import * as fs from 'fs';
 import { parse } from 'csv-parse/sync';
@@ -31,7 +32,7 @@ export async function checkLoginPage(options?: { prefillCredentials?: boolean })
   url: string;
   prefilled?: boolean;
 }> {
-  let browser: Browser | null = null;
+  let browser: any = null;
   const loginUrl = 'https://www.sbisec.co.jp/ETGate/?_ControlID=WPLETlgR001Control&_PageID=WPLETlgR001Rlgn50&_DataStoreID=DSWPLETlgR001Control&_ActionID=login&getFlg=on';
   try {
     const isDebugMode = process.env.PWDEBUG === '1';
@@ -39,29 +40,22 @@ export async function checkLoginPage(options?: { prefillCredentials?: boolean })
     if (isDebugMode) {
       const localChromePath = process.env.LOCAL_CHROME_PATH;
       if (localChromePath) {
-        browser = await chromium.launch({ headless: false, executablePath: localChromePath });
+        browser = await puppeteer.launch({ headless: false, executablePath: localChromePath });
       } else {
         try {
-          browser = await chromium.launch({ headless: false, channel: 'chrome' });
+          browser = await puppeteer.launch({ headless: false });
         } catch (e) {
           // macOS 기본 경로로 폴백
-          browser = await chromium.launch({ headless: false, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
+          browser = await puppeteer.launch({ headless: false, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
         }
       }
     } else {
-      // Vercel 환경에서 Playwright 사용
-      browser = await chromium.launch({
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-gpu',
-          '--no-first-run',
-          '--no-zygote',
-          '--single-process',
-          '--disable-extensions'
-        ],
-        headless: true,
+      // Vercel 환경에서 chrome-aws-lambda 사용
+      const executablePath = await edgeChromium.executablePath;
+      browser = await puppeteer.launch({
+        args: edgeChromium.args,
+        executablePath,
+        headless: edgeChromium.headless,
       });
     }
 
@@ -330,7 +324,7 @@ interface DividendResult {
 }
 
 export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrideDates?: { from?: string; to?: string } } = {}): Promise<DividendResult | null> {
-  let browser: Browser | null = null;
+  let browser: any = null;
   console.log('Starting dividend scraping process...');
 
   try {
@@ -340,28 +334,21 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
       console.log('Running in local debug mode. Launching system Chrome...');
       const localChromePath = process.env.LOCAL_CHROME_PATH;
       if (localChromePath) {
-        browser = await chromium.launch({ headless: false, executablePath: localChromePath });
+        browser = await puppeteer.launch({ headless: false, executablePath: localChromePath });
       } else {
         try {
-          browser = await chromium.launch({ headless: false, channel: 'chrome' });
+          browser = await puppeteer.launch({ headless: false });
         } catch (e) {
-          browser = await chromium.launch({ headless: false, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
+          browser = await puppeteer.launch({ headless: false, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
         }
       }
     } else {
-      console.log('Running in Vercel/production mode. Launching Playwright Chromium...');
-      browser = await chromium.launch({
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-gpu',
-          '--no-first-run',
-          '--no-zygote',
-          '--single-process',
-          '--disable-extensions'
-        ],
-        headless: true,
+      console.log('Running in Vercel/production mode. Launching chrome-aws-lambda...');
+      const executablePath = await edgeChromium.executablePath;
+      browser = await puppeteer.launch({
+        args: edgeChromium.args,
+        executablePath,
+        headless: edgeChromium.headless,
       });
     }
 

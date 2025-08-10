@@ -37,6 +37,30 @@
 
   요약하자면, 'cha-line' 봇의 소프트웨어(코드)는 완전히 완성되었습니다. 이제 이 소프트웨어를 실제 작동하도록 서버에 올리고(배포), 외부 서비스(LINE, 
   Google)와 연결하는 최종 설정 작업만 남았습니다.
+
+---
+
+## **2025/1/27 - Vercel 배포 문제 해결: chrome-aws-lambda 전환**
+
+### **문제 상황**
+- Vercel에서 Playwright 사용 시 `libnss3.so` 의존성 오류 발생
+- `@sparticuz/chromium` 사용 시에도 동일한 시스템 의존성 문제
+- Vercel 환경에서 브라우저 실행 불가
+
+### **해결 방법**
+- **Playwright → chrome-aws-lambda + puppeteer-core 전환**
+- `chrome-aws-lambda@10.1.0` + `puppeteer-core@10.1.0` 설치
+- Vercel 환경에 최적화된 브라우저 실행 방식 적용
+
+### **수정된 파일들**
+- `lib/scraper.ts`: Playwright → puppeteer-core 전환
+- `package.json`: postinstall, vercel-build 스크립트 정리
+- 의존성: Playwright 제거, chrome-aws-lambda 추가
+
+### **기대 효과**
+- Vercel 환경에서 안정적인 브라우저 실행
+- 시스템 의존성 문제 해결
+- 프로덕션 환경에서 정상 작동
   -----
 ++++ API 인증과정 메모
 ✦ 물론입니다. Google Cloud Platform에서 API를 활성화하고, 일반 @gmail.com 계정으로 cha-line 봇을 운영하기 위해 필요한 인증 정보를 생성했던 전 과정을
