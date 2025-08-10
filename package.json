@@ -6,7 +6,7 @@
     "dev": "next dev",
     "dev:debug": "PWDEBUG=1 next dev",
     "build": "next build",
-    "vercel-build": "next build",
+    "vercel-build": "npx puppeteer browsers install chrome && next build",
     "start": "next start",
     "lint": "next lint",
     "debug:scrape": "PWDEBUG=1 TS_NODE_PROJECT=tsconfig.debug.json AUTH_ONLY=1 ts-node --transpile-only run-debug.ts",
