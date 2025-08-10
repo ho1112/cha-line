@@ -341,9 +341,17 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
         // Running in Vercel/production mode. Launching puppeteer directly...
         console.log('Vercel environment detected, using puppeteer directly...');
         
-        // Vercel에서 Chrome 실행 경로 설정
-        const chromePath = '/home/sbx_user1051/.cache/puppeteer/chrome-linux/chrome';
-        console.log('Using Chrome path:', chromePath);
+        // Vercel에서 Chrome 실행 경로를 동적으로 찾기
+        let chromePath: string | undefined;
+        try {
+          // puppeteer가 설치한 Chrome 경로 찾기
+          const { executablePath } = require('puppeteer');
+          chromePath = executablePath();
+          console.log('Found Chrome path:', chromePath);
+        } catch (e) {
+          console.log('Could not find Chrome path, using default:', e);
+          chromePath = undefined;
+        }
         
         browser = await puppeteer.launch({
           headless: true,
