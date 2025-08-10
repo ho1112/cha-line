@@ -1,6 +1,5 @@
 // /lib/scraper.ts
 
-import edgeChromium from 'chrome-aws-lambda';
 import puppeteer from 'puppeteer-core';
 import { google } from 'googleapis';
 import * as fs from 'fs';
@@ -50,13 +49,8 @@ export async function checkLoginPage(options?: { prefillCredentials?: boolean })
         }
       }
     } else {
-      // Vercel 환경에서 chrome-aws-lambda 사용
-      const executablePath = await edgeChromium.executablePath;
-      browser = await puppeteer.launch({
-        args: edgeChromium.args,
-        executablePath,
-        headless: edgeChromium.headless,
-      });
+      // Vercel 환경에서는 브라우저를 실행할 수 없으므로 에러 발생
+      throw new Error('Browser automation is not supported in Vercel environment. Please use local development mode.');
     }
 
     const context = await browser.newContext();
@@ -343,13 +337,8 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
         }
       }
     } else {
-      console.log('Running in Vercel/production mode. Launching chrome-aws-lambda...');
-      const executablePath = await edgeChromium.executablePath;
-      browser = await puppeteer.launch({
-        args: edgeChromium.args,
-        executablePath,
-        headless: edgeChromium.headless,
-      });
+      console.log('Running in Vercel/production mode. Browser automation not supported.');
+      throw new Error('Browser automation is not supported in Vercel environment. Please use local development mode.');
     }
 
     if (!browser) {
@@ -623,7 +612,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     } catch (submitError) {
       console.log('Failed to submit auth code, trying JavaScript method:', submitError);
       // 대안 방법: JavaScript로 직접 입력 및 제출
-      await authPage.evaluate((code) => {
+      await authPage.evaluate((code: string) => {
         const input = document.querySelector('input[name="verifyCode"]') as HTMLInputElement;
         const button = document.querySelector('button:has-text("認証する")') as HTMLButtonElement;
         if (input) input.value = code;
