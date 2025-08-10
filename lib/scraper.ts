@@ -253,7 +253,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     const remoteWsEndpoint = endpointEnv
       ? (/^wss?:\/\//i.test(endpointEnv)
           ? endpointEnv
-          : `wss://chrome.browserless.io?token=${endpointEnv}`)
+          : `wss://production-sfo.browserless.io?token=${endpointEnv}`)
       : undefined;
 
     if (remoteWsEndpoint) {
