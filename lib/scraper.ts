@@ -342,6 +342,9 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
         // Running in Vercel/production mode. Launching puppeteer with chrome-aws-lambda...
         console.log('Vercel environment detected, using chrome-aws-lambda...');
         
+        // Force Chrome product
+        process.env.PUPPETEER_PRODUCT = 'chrome';
+        
         browser = await puppeteer.launch({
           args: edgeChromium.args,
           executablePath: await edgeChromium.executablePath,
