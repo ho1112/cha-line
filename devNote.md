@@ -344,3 +344,64 @@
 
 - 프로덕션에서 실 실행 후, 필요 시 선택자 미세 조정.
 - 웹훅 보안 강화: LINE 시그니처 검증, GAS 공유 시크릿 헤더.
+
+---
+
+8. 여덟번째 (browserless 환경 문제 및 대안 서비스 탐색)
+
+### 무엇을 했는가?
+
+- **browserless 환경에서의 지속적인 문제 발생**
+  - `Target page, context or browser has been closed` 에러가 계속 발생
+  - 페이지가 너무 빨리 닫히는 문제로 인해 안정적인 스크래핑이 어려움
+  - 로그인, 2단계 인증, 디바이스 등록 등 모든 단계에서 페이지 안정성 문제
+
+- **browserless 문제 해결 시도**
+  - 브라우저 연결 로직을 더 안정적으로 수정 (60초 타임아웃, User-Agent 헤더 추가)
+  - 새 컨텍스트를 매번 생성하도록 변경
+  - 2단계 인증 탭 생성 부분을 더 안전하게 수정
+  - 디바이스 체크박스 부분을 더 안전하게 수정
+  - 인증 코드 입력 부분을 더 안전하게 수정
+  - 메인 페이지에서 코드 읽기 부분을 더 안전하게 수정
+  - 모든 페이지 상호작용에 재시도 로직과 JavaScript 대안 방법 추가
+
+- **대안 서비스 탐색**
+  - Cloudflare Workers 시도 → Puppeteer 지원하지 않음으로 실패
+  - Railway 시도 → 유료 서비스로 확인되어 중단
+  - Vercel에서 Playwright 사용 가능성 재검토 필요
+
+### 현재 문제 상황
+
+- **browserless의 근본적인 불안정성**
+  - 페이지가 너무 빨리 닫힘
+  - 안정적인 상호작용이 어려움
+  - `Target page, context or browser has been closed` 에러가 계속 발생
+
+- **Vercel에서 Playwright 사용 가능성**
+  - `@sparticuz/chromium` 패키지가 이미 설치되어 있음
+  - ZenRows 블로그에서 Vercel에서 Playwright 사용 성공 사례 확인
+  - 특별한 설정이 필요할 것으로 예상
+
+### 다음 단계 제안
+
+1. **Vercel에서 Playwright 설정 시도** (가능성: 70%)
+   - `vercel.json` 설정 수정
+   - Playwright 설정 수정
+   - 환경 변수 설정
+
+2. **다른 무료 서비스 시도** (가능성: 80%)
+   - Render (Playwright 지원, 무료 플랜)
+   - Fly.io (Playwright 지원, 무료 플랜)
+   - Heroku (Playwright 지원, 무료 플랜)
+
+3. **현재 browserless 문제를 더 해결** (가능성: 30%)
+   - 더 안정적인 연결 방식
+   - 더 안정적인 페이지 관리
+
+### 권장 방향
+
+**Vercel에서 Playwright 설정을 먼저 시도하는 것이 좋겠습니다!**
+- 이미 필요한 패키지가 설치되어 있음
+- 성공 사례가 있음
+- 설정만 제대로 하면 될 것 같음
+- 성공하면 browserless 문제를 완전히 해결할 수 있음
