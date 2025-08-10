@@ -7,8 +7,10 @@ const lineClient = new Client({
 });
 
 interface DividendData {
-  text: string;
+  text?: string;
   source?: string;
+  type?: 'success' | 'error';
+  message?: string;
 }
 
 export async function sendLineMessage(dividendData: DividendData): Promise<void> {
@@ -18,8 +20,25 @@ export async function sendLineMessage(dividendData: DividendData): Promise<void>
     return;
   }
 
-  const messageText = `새로운 배당금이 입금되었습니다!\n\n[상세 내역]\n${dividendData.text}`;
+  // 에러 메시지인 경우
+  if (dividendData.type === 'error') {
+    const errorMessage: Message = {
+      type: 'text',
+      text: `🚨 cha-line 봇 실행 중 에러가 발생했습니다.\n\n[에러 내용]\n${dividendData.message || 'Unknown error'}`,
+    };
+    
+    try {
+      await lineClient.pushMessage(userId, errorMessage);
+      console.log('Successfully sent error message to LINE.');
+    } catch (error: any) {
+      console.error('Failed to send error message to LINE:', error.originalError?.response?.data);
+    }
+    return;
+  }
 
+  // 성공 메시지인 경우 (기존 로직)
+  const messageText = dividendData.text || '새로운 배당금이 입금되었습니다!';
+  
   const flexMessage: any = {
     type: 'flex',
     altText: '배당 알림',

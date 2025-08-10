@@ -429,3 +429,166 @@
 - 성공 사례가 있음
 - 설정만 제대로 하면 될 것 같음
 - 성공하면 browserless 문제를 완전히 해결할 수 있음
+
+---
+
+9. 아홉번째 (Vercel 배포 문제 해결 과정 - 실패한 모든 방법들)
+
+### **Vercel에서 브라우저 자동화 문제 해결 시도 과정**
+
+#### **문제 상황**
+- Vercel 서버리스 환경에서 브라우저 자동화(웹 스크래핑)가 필요
+- SBI 증권 로그인 및 배당금 정보 스크래핑이 핵심 기능
+- 로컬에서는 정상 작동하지만 Vercel 배포 시 브라우저 실행 불가
+
+---
+
+#### **시도했던 방법들 (모두 실패)**
+
+##### **1. `chrome-aws-lambda` + `puppeteer-core` (첫 번째 시도)**
+- **설치**: `chrome-aws-lambda@10.1.0` + `puppeteer-core@10.1.0`
+- **문제**: `.js.map` 파일 파싱 에러 발생
+- **에러 메시지**: `Module parse failed: Unexpected token (1:10)` for `.js.map` files
+- **해결 시도**: webpack 설정으로 `.js.map` 파일 무시 시도
+- **결과**: webpack 설정이 복잡해지고 근본 문제 해결되지 않음
+- **상태**: 완전히 제거함
+
+##### **2. `puppeteer` 직접 사용 (두 번째 시도)**
+- **설치**: `puppeteer@22.0.0` (Chrome 포함)
+- **문제**: "Could not find Chrome" 에러
+- **에러 메시지**: `Error: Could not find Chrome (ver. 127.0.6533.88)`
+- **해결 시도**: `vercel-build` 스크립트에 `npx puppeteer browsers install chrome` 추가
+- **결과**: 빌드 시 Chrome 설치되지만 런타임에서 찾을 수 없음
+- **상태**: Chrome 경로 문제로 실패
+
+##### **3. `@sparticuz/chromium` (세 번째 시도)**
+- **설치**: `@sparticuz/chromium` + `puppeteer-core`
+- **문제**: `TypeError: b.newContext is not a function`
+- **에러 메시지**: `TypeError: b.newContext is not a function`
+- **해결 시도**: 없음 (호환성 문제)
+- **결과**: 즉시 실패
+- **상태**: 사용자 분노로 중단
+
+##### **4. `playwright` (네 번째 시도)**
+- **설치**: `playwright`
+- **문제**: 이전에 시도했던 방법
+- **에러 메시지**: 사용자 분노로 상세 기록 없음
+- **해결 시도**: 없음
+- **결과**: 반복 시도로 사용자 분노
+- **상태**: 즉시 중단
+
+##### **5. `chrome-aws-lambda@5.2.1` + `puppeteer-core@5.2.1` (다섯 번째 시도)**
+- **설치**: `chrome-aws-lambda@5.2.1` + `puppeteer-core@5.2.1`
+- **문제**: "Could not find browser revision 782078" (Firefox 에러)
+- **에러 메시지**: `Error: Could not find browser revision 782078. Run "PUPPETEER_PRODUCT=firefox npm install"`
+- **해결 시도**: 
+  - `PUPPETEER_PRODUCT=chrome` 환경변수 설정
+  - `vercel.json`에 환경변수 추가
+  - `process.env.PUPPETEER_PRODUCT = 'chrome'` 코드에 추가
+- **결과**: 환경변수 설정으로도 해결되지 않음
+- **상태**: Firefox 브라우저 에러로 실패
+
+##### **6. `puppeteer` + Chrome 설치 스크립트 (여섯 번째 시도)**
+- **설치**: `puppeteer@24.16.0`
+- **문제**: Chrome 경로는 감지되지만 실제 파일이 존재하지 않음
+- **에러 메시지**: `Browser was not found at the configured executablePath`
+- **해결 시도**: 
+  - `vercel-build`에 Chrome 설치 명령 추가
+  - Chrome 경로를 동적으로 찾기 (`puppeteer.executablePath()`)
+  - Chrome 파일 존재 여부 확인 (`fs.existsSync`)
+  - `executablePath` 사용하지 않도록 수정
+- **결과**: Chrome 경로 감지되지만 파일 접근 불가
+- **상태**: Vercel 파일 시스템 제약으로 실패
+
+##### **7. `browserless` 서비스 사용 (일곱 번째 시도)**
+- **설치**: `browserless` 패키지
+- **문제**: `Target page, context or browser has been closed` 에러 지속 발생
+- **에러 메시지**: 
+  ```
+  Target page, context or browser has been closed
+  Cannot read properties of 'undefined' (reading 'click')
+  ```
+- **해결 시도**: 
+  - 브라우저 연결 로직 안정화 (60초 타임아웃, User-Agent 헤더 추가)
+  - 새 컨텍스트를 매번 생성하도록 변경
+  - 2단계 인증 탭 생성 부분 안전하게 수정
+  - 디바이스 체크박스 부분 안전하게 수정
+  - 인증 코드 입력 부분 안전하게 수정
+  - 메인 페이지에서 코드 읽기 부분 안전하게 수정
+  - 모든 페이지 상호작용에 재시도 로직과 JavaScript 대안 방법 추가
+- **결과**: 페이지가 너무 빨리 닫히는 근본적 문제 해결 불가
+- **상태**: browserless의 근본적 불안정성으로 실패
+
+##### **8. Cloudflare Workers (여덟 번째 시도)**
+- **설치**: Cloudflare Workers 환경
+- **문제**: Puppeteer 지원하지 않음
+- **에러 메시지**: `Puppeteer is not supported in Cloudflare Workers`
+- **해결 시도**: 없음 (기술적 제약)
+- **결과**: 즉시 실패
+- **상태**: 플랫폼 제약으로 실패
+
+##### **9. Railway (아홉 번째 시도)**
+- **설치**: Railway 배포 환경
+- **문제**: 유료 서비스
+- **에러 메시지**: 무료 플랜에서 Playwright 지원 제한
+- **해결 시도**: 없음 (비용 문제)
+- **결과**: 중단
+- **상태**: 비용 문제로 중단
+
+##### **10. 현재: Vercel에서 Playwright 재시도 (진행 중)**
+- **설치**: `@sparticuz/chromium` (이미 설치됨)
+- **문제**: 이전에 실패했지만 ZenRows 블로그에서 성공 사례 확인
+- **에러 메시지**: 아직 테스트 전
+- **해결 시도**: 
+  - `vercel.json` 설정 수정
+  - Playwright 설정 수정
+  - 환경 변수 설정
+- **결과**: 아직 테스트 중
+- **상태**: 진행 중
+
+---
+
+#### **중요한 교훈**
+
+##### **절대 다시 시도하지 말 것:**
+- ❌ `chrome-aws-lambda` (모든 버전)
+- ❌ `@sparticuz/chromium`
+- ❌ `playwright`
+- ❌ `browserless` 서비스
+- ❌ Cloudflare Workers
+- ❌ Railway (유료)
+- ❌ CSV fallback 방식
+- ❌ 환경변수만으로 해결하려는 시도
+- ❌ Chrome 경로 하드코딩
+- ❌ `executablePath` 동적 감지
+
+##### **Vercel 환경의 제약사항:**
+- **빌드 시**: Chrome 설치 가능
+- **런타임에서**: 파일 시스템 접근 제한
+- **서버리스**: 메모리/시간 제한
+- **Chrome 경로**: `/home/sbx_user1051/.cache/puppeteer/` 경로에 설치되지만 실제 파일 접근 불가
+
+##### **현재 방향:**
+- ✅ `puppeteer` 직접 사용
+- ✅ Chrome 설치 스크립트 포함
+- ✅ `executablePath` 사용하지 않음
+- ✅ 기본 puppeteer 설정으로 실행
+
+---
+
+#### **다음 단계 제안**
+
+1. **현재 방법 테스트 완료 후 결과 확인**
+2. **실패 시 완전히 다른 접근 방식 고려**
+   - **무료 클라우드 서비스**: Render, Fly.io, Heroku (Playwright 지원)
+   - **API 기반 스크래핑 서비스**: ZenRows, ScrapingBee 등
+   - **정적 파일 처리 방식**: CSV 파일을 미리 준비하여 배포
+   - **Vercel Functions**: Edge Runtime이나 Node.js 18+ 사용
+3. **근본적 해결책 고려**
+   - **배포 플랫폼 변경**: Vercel에서 다른 서비스로 이전
+   - **아키텍처 변경**: 스크래핑을 별도 서버에서 실행하고 결과만 API로 전송
+
+#### **참고 사항**
+- 이 문제는 다른 AI에게 물어볼 때 이 기록을 참고하여 동일한 실패 방법을 반복하지 않도록 함
+- Vercel 환경에서의 브라우저 자동화는 근본적으로 어려운 문제일 수 있음
+- 프로젝트의 핵심 기능이 Vercel에서 작동하지 않는다면 배포 플랫폼 변경을 고려해야 함
