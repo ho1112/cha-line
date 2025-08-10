@@ -1,7 +1,6 @@
 // /lib/scraper.ts
 
-import edgeChromium from 'chrome-aws-lambda';
-import puppeteer from 'puppeteer-core';
+import puppeteer from 'puppeteer';
 import { google } from 'googleapis';
 import * as fs from 'fs';
 import { parse } from 'csv-parse/sync';
@@ -339,37 +338,22 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
       }
     } else {
       if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
-        // Running in Vercel/production mode. Launching puppeteer with chrome-aws-lambda...
-        console.log('Vercel environment detected, using chrome-aws-lambda...');
+        // Running in Vercel/production mode. Launching puppeteer directly...
+        console.log('Vercel environment detected, using puppeteer directly...');
         
-        try {
-          // Force Chrome product and set paths
-          process.env.PUPPETEER_PRODUCT = 'chrome';
-          process.env.PUPPETEER_EXECUTABLE_PATH = await edgeChromium.executablePath;
-          
-          browser = await puppeteer.launch({
-            args: edgeChromium.args,
-            executablePath: await edgeChromium.executablePath,
-            headless: edgeChromium.headless,
-          });
-        } catch (error) {
-          console.log('chrome-aws-lambda failed, trying puppeteer directly...');
-          
-          // Fallback to puppeteer with serverless args
-          browser = await puppeteer.launch({
-            headless: true,
-            args: [
-              '--no-sandbox',
-              '--disable-setuid-sandbox',
-              '--disable-dev-shm-usage',
-              '--disable-accelerated-2d-canvas',
-              '--no-first-run',
-              '--no-zygote',
-              '--single-process',
-              '--disable-gpu'
-            ]
-          });
-        }
+        browser = await puppeteer.launch({
+          headless: true,
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--single-process',
+            '--disable-gpu'
+          ]
+        });
       } else {
         console.log('Running in Vercel/production mode. Launching puppeteer...');
         browser = await puppeteer.launch({
