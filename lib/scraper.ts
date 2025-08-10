@@ -1,6 +1,6 @@
 // /lib/scraper.ts
 
-import puppeteer from 'puppeteer-core';
+import puppeteer from 'puppeteer';
 import { google } from 'googleapis';
 import * as fs from 'fs';
 import { parse } from 'csv-parse/sync';
@@ -337,8 +337,20 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
         }
       }
     } else {
-      console.log('Running in Vercel/production mode. Browser automation not supported.');
-      throw new Error('Browser automation is not supported in Vercel environment. Please use local development mode.');
+      console.log('Running in Vercel/production mode. Launching puppeteer...');
+      browser = await puppeteer.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--single-process',
+          '--disable-gpu'
+        ]
+      });
     }
 
     if (!browser) {

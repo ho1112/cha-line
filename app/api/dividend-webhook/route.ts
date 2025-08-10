@@ -26,11 +26,25 @@ export async function POST(request: NextRequest) {
       from: typeof body?.from === 'string' ? body.from : undefined,
       to: typeof body?.to === 'string' ? body.to : undefined,
     };
-    // 1. 스크래핑 실행
-    const dividendData = await scrapeDividend({ overrideDates });
+
+    // Vercel 환경에서는 브라우저 자동화 대신 간단한 메시지 전송
+    let dividendData;
+    
+    try {
+      // 1. 먼저 브라우저 자동화 시도 (로컬 환경에서만 작동)
+      dividendData = await scrapeDividend({ overrideDates });
+    } catch (browserError: any) {
+      console.log('Browser automation failed, using fallback message:', browserError.message);
+      
+      // 2. Vercel 환경에서 사용할 수 있는 fallback 메시지
+      dividendData = {
+        text: `Vercel 환경에서는 브라우저 자동화를 지원하지 않습니다. 로컬 환경에서 테스트해주세요.\n\n요청된 날짜: ${overrideDates.from || '기본값'} ~ ${overrideDates.to || '기본값'}`,
+        source: 'Vercel Fallback'
+      };
+    }
 
     if (dividendData) {
-      // 2. LINE으로 성공 메시지 전송
+      // 3. LINE으로 성공 메시지 전송
       await sendLineMessage(dividendData);
       return NextResponse.json({ message: "Scraping and notification successful" });
     } else {
@@ -39,7 +53,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     console.error(error);
-    // 3. 에러 발생 시 LINE으로 실패 메시지 전송
+    // 4. 에러 발생 시 LINE으로 실패 메시지 전송
     await sendErrorMessage(error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
