@@ -3,7 +3,8 @@
     "app/api/**/route.ts": {
       "maxDuration": 60
     }
-  }
+  },
+  "buildCommand": "npm install && npm run build && npx playwright install chromium"
 }
 
 

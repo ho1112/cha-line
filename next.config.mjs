@@ -5,7 +5,7 @@ const nextConfig = {
     'app/api/dividend-webhook/route.ts': [
       './node_modules/playwright/**'
     ],
-    'app/api/test-scrape/route.ts': [
+    'api/test-scrape/route.ts': [
       './node_modules/playwright/**'
     ]
   }
