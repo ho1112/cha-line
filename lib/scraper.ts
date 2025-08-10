@@ -322,8 +322,11 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     console.log('Current page URL:', await page.url());
     console.log('Current page title:', await page.title());
     
-    // 페이지 로딩 완료 대기
-    await page.waitForLoadState('networkidle');
+    // 페이지 로딩 완료 대기 (networkidle 대신 더 간단한 방법 사용)
+    await page.waitForLoadState('domcontentloaded');
+    
+    // 잠시 대기 (동적 콘텐츠 로딩을 위해)
+    await page.waitForTimeout(2000);
     
     // 페이지 스크린샷 저장 (디버깅용)
     try {
