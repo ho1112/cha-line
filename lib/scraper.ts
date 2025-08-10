@@ -315,7 +315,16 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     ]);
     console.log('Logged in with ID/Password.');
 
-    // 3. 새로운 디바이스 인증 로직 (2025/8/9 이후 사양)
+    // 3. 디바이스 인증 페이지로 직접 이동
+    console.log('Navigating to device authentication page...');
+    const deviceAuthUrl = 'https://site2.sbisec.co.jp/ETGate/';
+    await page.goto(deviceAuthUrl, { waitUntil: 'domcontentloaded' });
+    
+    // 디바이스 인증 페이지 로딩 확인
+    console.log('Current page URL after navigation:', await page.url());
+    console.log('Current page title after navigation:', await page.title());
+    
+    // 4. 새로운 디바이스 인증 로직 (2025/8/9 이후 사양)
     console.log('Starting new device authentication flow...');
 
     // 현재 페이지 상태 확인 및 디버깅
