@@ -348,6 +348,13 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
           const { executablePath } = require('puppeteer');
           chromePath = executablePath();
           console.log('Found Chrome path:', chromePath);
+          
+          // Chrome 파일이 실제로 존재하는지 확인
+          const fs = require('fs');
+          if (!fs.existsSync(chromePath)) {
+            console.log('Chrome file not found at path, will use default puppeteer');
+            chromePath = undefined;
+          }
         } catch (e) {
           console.log('Could not find Chrome path, using default:', e);
           chromePath = undefined;
