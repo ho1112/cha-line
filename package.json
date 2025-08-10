@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "postinstall": "npx playwright install chromium",
     "debug:scrape": "PWDEBUG=1 TS_NODE_PROJECT=tsconfig.debug.json AUTH_ONLY=1 ts-node --transpile-only run-debug.ts",
     "debug:scrape:full": "PWDEBUG=1 TS_NODE_PROJECT=tsconfig.debug.json AUTH_ONLY=0 ts-node --transpile-only run-debug.ts",
     "debug:scrape:send": "PWDEBUG=1 TS_NODE_PROJECT=tsconfig.debug.json AUTH_ONLY=0 SEND_LINE=1 ts-node --transpile-only run-debug.ts",
