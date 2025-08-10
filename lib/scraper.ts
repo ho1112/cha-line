@@ -315,23 +315,12 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     ]);
     console.log('Logged in with ID/Password.');
 
-    // 3. 디바이스 인증 페이지로 직접 이동
-    console.log('Navigating to device authentication page...');
-    const deviceAuthUrl = 'https://site2.sbisec.co.jp/ETGate/';
-    await page.goto(deviceAuthUrl, { waitUntil: 'domcontentloaded' });
+    // 3. 디바이스 인증 상태 확인 (로그인 후 이미 올바른 페이지에 있음)
+    console.log('Checking device authentication status...');
+    console.log('Current page URL after login:', await page.url());
+    console.log('Current page title after login:', await page.title());
     
-    // 디바이스 인증 페이지 로딩 확인
-    console.log('Current page URL after navigation:', await page.url());
-    console.log('Current page title after navigation:', await page.title());
-    
-    // 4. 새로운 디바이스 인증 로직 (2025/8/9 이후 사양)
-    console.log('Starting new device authentication flow...');
-
-    // 현재 페이지 상태 확인 및 디버깅
-    console.log('Current page URL:', await page.url());
-    console.log('Current page title:', await page.title());
-    
-    // 페이지 로딩 완료 대기 (networkidle 대신 더 간단한 방법 사용)
+    // 페이지 로딩 완료 대기
     await page.waitForLoadState('domcontentloaded');
     
     // 잠시 대기 (동적 콘텐츠 로딩을 위해)
