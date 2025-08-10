@@ -1,13 +1,7 @@
 {
   "functions": {
     "app/api/**/route.ts": {
-      "includeFiles": "node_modules/@sparticuz/chromium/{bin,lib}/**",
       "maxDuration": 60
-    }
-  },
-  "build": {
-    "env": {
-      "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD": "1"
     }
   }
 }

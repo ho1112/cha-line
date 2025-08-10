@@ -1,12 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: ['@sparticuz/chromium'],
+  serverExternalPackages: ['playwright'],
   outputFileTracingIncludes: {
     'app/api/dividend-webhook/route.ts': [
-      './node_modules/@sparticuz/chromium/**'
+      './node_modules/playwright/**'
     ],
     'app/api/test-scrape/route.ts': [
-      './node_modules/@sparticuz/chromium/**'
+      './node_modules/playwright/**'
     ]
   }
 };

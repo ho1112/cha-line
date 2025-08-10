@@ -1,7 +1,6 @@
 // /lib/scraper.ts
 
-import playwright, { type Browser } from 'playwright-core';
-import chromium from '@sparticuz/chromium';
+import { chromium, type Browser } from 'playwright';
 import { google } from 'googleapis';
 import * as fs from 'fs';
 import { parse } from 'csv-parse/sync';
@@ -40,20 +39,19 @@ export async function checkLoginPage(options?: { prefillCredentials?: boolean })
     if (isDebugMode) {
       const localChromePath = process.env.LOCAL_CHROME_PATH;
       if (localChromePath) {
-        browser = await playwright.chromium.launch({ headless: false, executablePath: localChromePath });
+        browser = await chromium.launch({ headless: false, executablePath: localChromePath });
       } else {
         try {
-          browser = await playwright.chromium.launch({ headless: false, channel: 'chrome' });
+          browser = await chromium.launch({ headless: false, channel: 'chrome' });
         } catch (e) {
           // macOS 기본 경로로 폴백
-          browser = await playwright.chromium.launch({ headless: false, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
+          browser = await chromium.launch({ headless: false, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
         }
       }
     } else {
       // Vercel 환경에서 Playwright 사용
-      browser = await playwright.chromium.launch({
+      browser = await chromium.launch({
         args: [
-          ...chromium.args,
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
@@ -63,7 +61,6 @@ export async function checkLoginPage(options?: { prefillCredentials?: boolean })
           '--single-process',
           '--disable-extensions'
         ],
-        executablePath: await chromium.executablePath(),
         headless: true,
       });
     }
@@ -343,19 +340,18 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
       console.log('Running in local debug mode. Launching system Chrome...');
       const localChromePath = process.env.LOCAL_CHROME_PATH;
       if (localChromePath) {
-        browser = await playwright.chromium.launch({ headless: false, executablePath: localChromePath });
+        browser = await chromium.launch({ headless: false, executablePath: localChromePath });
       } else {
         try {
-          browser = await playwright.chromium.launch({ headless: false, channel: 'chrome' });
+          browser = await chromium.launch({ headless: false, channel: 'chrome' });
         } catch (e) {
-          browser = await playwright.chromium.launch({ headless: false, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
+          browser = await chromium.launch({ headless: false, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
         }
       }
     } else {
-      console.log('Running in Vercel/production mode. Launching Sparticuz Chromium...');
-      browser = await playwright.chromium.launch({
+      console.log('Running in Vercel/production mode. Launching Playwright Chromium...');
+      browser = await chromium.launch({
         args: [
-          ...chromium.args,
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
@@ -365,7 +361,6 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
           '--single-process',
           '--disable-extensions'
         ],
-        executablePath: await chromium.executablePath(),
         headless: true,
       });
     }
