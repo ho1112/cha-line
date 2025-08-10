@@ -6,7 +6,7 @@
     "dev": "next dev",
     "dev:debug": "PWDEBUG=1 next dev",
     "build": "next build",
-    "vercel-build": "npx puppeteer browsers install chrome && next build",
+    "vercel-build": "next build",
     "start": "next start",
     "lint": "next lint",
     "debug:scrape": "PWDEBUG=1 TS_NODE_PROJECT=tsconfig.debug.json AUTH_ONLY=1 ts-node --transpile-only run-debug.ts",
@@ -22,11 +22,12 @@
   },
   "dependencies": {
     "@line/bot-sdk": "^10.0.0",
+    "@sparticuz/chromium": "^138.0.2",
     "csv-parse": "^6.1.0",
     "googleapis": "^154.1.0",
     "iconv-lite": "^0.6.3",
     "next": "^15.4.5",
-    "puppeteer": "^22.0.0",
+    "puppeteer-core": "^24.16.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },

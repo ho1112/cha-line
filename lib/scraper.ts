@@ -1,6 +1,7 @@
 // /lib/scraper.ts
 
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-core';
+import chromium from '@sparticuz/chromium';
 import { google } from 'googleapis';
 import * as fs from 'fs';
 import { parse } from 'csv-parse/sync';
@@ -338,30 +339,13 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
       }
     } else {
       if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
-        // Running in Vercel/production mode. Launching puppeteer...
-        console.log('Vercel environment detected, checking Chrome installation...');
-        
-        try {
-          // Check if Chrome is available
-          const { execSync } = require('child_process');
-          const chromePath = execSync('which google-chrome || which chromium-browser || which chrome', { encoding: 'utf8' }).trim();
-          console.log('Chrome found at:', chromePath);
-        } catch (error) {
-          console.log('Chrome not found in PATH, will use puppeteer bundled Chrome');
-        }
+        // Running in Vercel/production mode. Launching puppeteer with @sparticuz/chromium...
+        console.log('Vercel environment detected, using @sparticuz/chromium...');
         
         browser = await puppeteer.launch({
+          args: chromium.args,
+          executablePath: await chromium.executablePath(),
           headless: true,
-          args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--no-zygote',
-            '--single-process',
-            '--disable-gpu'
-          ]
         });
       } else {
         console.log('Running in Vercel/production mode. Launching puppeteer...');
