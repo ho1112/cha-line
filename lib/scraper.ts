@@ -1,7 +1,6 @@
 // /lib/scraper.ts
 
-import puppeteer from 'puppeteer-core';
-import chromium from '@sparticuz/chromium';
+import { chromium } from 'playwright';
 import { google } from 'googleapis';
 import * as fs from 'fs';
 import { parse } from 'csv-parse/sync';
@@ -40,13 +39,13 @@ export async function checkLoginPage(options?: { prefillCredentials?: boolean })
     if (isDebugMode) {
       const localChromePath = process.env.LOCAL_CHROME_PATH;
       if (localChromePath) {
-        browser = await puppeteer.launch({ headless: false, executablePath: localChromePath });
+        browser = await chromium.launch({ headless: false, executablePath: localChromePath });
       } else {
         try {
-          browser = await puppeteer.launch({ headless: false });
+          browser = await chromium.launch({ headless: false });
         } catch (e) {
           // macOS 기본 경로로 폴백
-          browser = await puppeteer.launch({ headless: false, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
+          browser = await chromium.launch({ headless: false, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
         }
       }
     } else {
@@ -329,38 +328,27 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
       console.log('Running in local debug mode. Launching system Chrome...');
       const localChromePath = process.env.LOCAL_CHROME_PATH;
       if (localChromePath) {
-        browser = await puppeteer.launch({ headless: false, executablePath: localChromePath });
+        browser = await chromium.launch({ headless: false, executablePath: localChromePath });
       } else {
         try {
-          browser = await puppeteer.launch({ headless: false });
+          browser = await chromium.launch({ headless: false });
         } catch (e) {
-          browser = await puppeteer.launch({ headless: false, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
+          browser = await chromium.launch({ headless: false, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
         }
       }
     } else {
       if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
-        // Running in Vercel/production mode. Launching puppeteer with @sparticuz/chromium...
-        console.log('Vercel environment detected, using @sparticuz/chromium...');
+        // Running in Vercel/production mode. Launching playwright chromium...
+        console.log('Vercel environment detected, using playwright chromium...');
         
-        browser = await puppeteer.launch({
-          args: chromium.args,
-          executablePath: await chromium.executablePath(),
+        browser = await chromium.launch({
           headless: true,
         });
       } else {
         console.log('Running in Vercel/production mode. Launching puppeteer...');
-        browser = await puppeteer.launch({
+        browser = await chromium.launch({
           headless: true,
-          args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--no-zygote',
-            '--single-process',
-            '--disable-gpu'
-          ]
+          args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-accelerated-2d-canvas', '--no-first-run', '--no-zygote', '--single-process', '--disable-gpu']
         });
       }
     }
