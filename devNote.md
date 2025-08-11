@@ -592,3 +592,219 @@
 - 이 문제는 다른 AI에게 물어볼 때 이 기록을 참고하여 동일한 실패 방법을 반복하지 않도록 함
 - Vercel 환경에서의 브라우저 자동화는 근본적으로 어려운 문제일 수 있음
 - 프로젝트의 핵심 기능이 Vercel에서 작동하지 않는다면 배포 플랫폼 변경을 고려해야 함
+
+---
+
+9. 아홉번째 (Render 배포 시 Puppeteer 문제 해결 과정)
+
+### 무엇을 했는가?
+
+- **Render 배포를 위한 Puppeteer 환경 구축 시도**
+  - `playwright` → `puppeteer-core` → `puppeteer` 순서로 라이브러리 변경
+  - 각 단계별로 발생한 문제와 해결 과정을 상세히 기록
+
+### 실패했던 시도들 (절대 다시 하지 말 것!)
+
+#### 1단계: Playwright (실패)
+- **문제**: Render에서 `playwright` 설치 시 용량 초과로 빌드 실패
+- **원인**: `playwright`는 Chromium을 포함하여 용량이 매우 큼
+- **결론**: Render에서는 `playwright` 사용 불가
+
+#### 2단계: Puppeteer-core + Chrome 설치 (실패)
+- **문제**: `puppeteer-core`는 브라우저가 없어서 실행 불가
+- **시도한 해결책**:
+  - `package.json`에 `"postinstall": "npx puppeteer browsers install chrome"` 추가
+  - `server.js`에 `executablePath: '/usr/bin/google-chrome'` 설정
+- **실패 원인**: 
+  - 가짜 `postinstall` 스크립트 작성 (실제로 Chrome 설치 안됨)
+  - Chrome 설치 경로가 `/opt/render/.cache/puppeteer/chrome/...`로 다름
+  - `puppeteer-core`는 `@puppeteer/browsers`와 호환성 문제
+- **결론**: `puppeteer-core` + Chrome 설치 조합은 Render에서 불안정
+
+#### 3단계: Puppeteer (성공)
+- **해결책**: `puppeteer`로 변경
+- **장점**: 
+  - 자체적으로 Chrome 포함
+  - 별도 경로 설정 불필요
+  - Render 환경에 최적화
+- **결과**: 성공적으로 작동
+
+### 핵심 교훈
+
+1. **Render에서는 `puppeteer` 사용**: `puppeteer-core`는 복잡하고 불안정
+2. **가짜 스크립트 작성 금지**: 실제로 작동하는지 확인 후 작성
+3. **전체 흐름 파악**: 부분적 수정이 아닌 전체 해결책 제시
+4. **단계별 검증**: 각 단계마다 실제 작동 여부 확인
+
+### 성공한 최종 설정
+
+```json
+// package.json
+{
+  "dependencies": {
+    "puppeteer": "^21.5.2"  // puppeteer-core 아님!
+  }
+}
+```
+
+```javascript
+// server.js
+const browser = await puppeteer.launch({
+  headless: true,
+  args: [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-accelerated-2d-canvas',
+    '--no-first-run',
+    '--no-zygote',
+    '--single-process',
+    '--disable-gpu'
+  ]
+  // executablePath 불필요!
+});
+```
+
+### 다음에 Render 배포할 때 주의사항
+
+- **절대 `puppeteer-core` 사용하지 말 것**
+- **절대 `playwright` 사용하지 말 것**  
+- **`puppeteer`만 사용할 것**
+- **별도 Chrome 설치 시도하지 말 것**
+
+---
+
+10. 열번째 (Render 배포 후 로그인 성공 여부 불확실 문제)
+
+### **문제 상황**
+- **로그인 "성공" 판단 기준의 문제**: 현재 코드에서 "Login successful!"이라고 판단하지만, 실제로는 로그인이 제대로 되지 않았을 가능성
+- **로그 분석 결과**: 
+  - "Login successful!" ✅
+  - "Saved cookies for future use" ✅  
+  - 하지만 `site2`에서도 로그인 상태가 아님 ❌
+- **핵심 문제**: 로그인 성공 여부를 정확하게 판단하는 로직이 부족함
+
+### **현재 상황 분석**
+1. **로그인은 "성공했다고" 하지만 실제로는**:
+   - 쿠키가 제대로 저장되지 않았거나
+   - 세션이 제대로 생성되지 않았거나  
+   - 2FA나 추가 인증이 필요한 상태
+
+2. **로그인 성공 판단 기준의 문제**:
+   - 현재 코드에서 "Login successful!"이라고 판단하는 기준이 잘못되었을 수 있음
+   - 실제 사용자 정보나 계좌 정보가 표시되는지 확인 필요
+   - 로그인 폼이 사라졌는지 확인 필요
+   - 특정 로그인 후 요소가 나타나는지 확인 필요
+
+### **필요한 작업**
+- **로그인 성공 여부를 더 정확하게 확인하는 방법 구현**:
+  1. 실제 사용자 정보나 계좌 정보가 표시되는지 확인
+  2. 로그인 폼이 사라졌는지 확인  
+  3. 특정 로그인 후 요소가 나타나는지 확인
+- **로그인 성공 판단 로직 수정**
+- **기본적인 로그인 상태 확인부터 차근차근 진행**
+
+### **교훈**
+- **로그인 성공 여부부터 확실히 확인하고 진행해야 함**
+- **허술한 가정으로 진행하면 안됨**
+- **각 단계별로 정확한 검증이 필요함**
+
+### **다음 단계**
+- 로그인 성공 여부를 정확하게 판단하는 로직 구현
+- 실제 로그인 상태 확인 방법 찾기
+- 기본적인 인증부터 차근차근 진행
+
+---
+
+11. 열한번째 (Render에서 Puppeteer-extra와 Stealth 플러그인 도입 및 문제 해결 과정)
+
+### **문제 상황**
+- **Render 환경에서의 컨텍스트 파괴 문제**: `Execution context was destroyed, most likely because of a navigation` 에러 지속 발생
+- **로컬 vs Render 환경 차이**: 로컬 Inspector 모드에서는 정상 작동하지만 Render Headless 모드에서만 에러 발생
+- **봇 탐지 문제**: SBI 증권 사이트가 Headless 모드를 탐지하고 차단하는 것으로 추정
+
+### **해결 시도 과정**
+
+#### **1단계: Puppeteer-extra와 Stealth 플러그인 도입**
+- **목표**: 봇 탐지를 우회하여 안정적인 스크래핑 구현
+- **설치**: `puppeteer-extra` + `puppeteer-extra-plugin-stealth`
+- **기대 효과**: 
+  - User-Agent 위장
+  - WebDriver 탐지 우회
+  - Headless 모드 탐지 우회
+  - 기타 봇 탐지 기법 우회
+
+#### **2단계: Stealth 플러그인 설정 및 문제 발생**
+- **초기 설정**: 기본 stealth 플러그인 적용
+- **문제 발생**: `sourceurl` evasion에서 `Target closed` 에러 발생
+- **에러 메시지**: 
+  ```
+  TargetCloseError: Protocol error (Runtime.callFunctionOn): Target closed
+  at next (/Users/leehoyeon/work/cha-line/render-scraper/node_modules/puppeteer-extra-plugin-stealth/evasions/sourceurl/index.js:34:41)
+  ```
+
+#### **3단계: Sourceurl Evasion 문제 해결 시도**
+- **문제 분석**: `sourceurl` evasion이 SBI 증권 사이트와 호환되지 않음
+- **해결 시도 1**: `stealth.enabledEvasions.delete('sourceurl')` → `TypeError: Cannot read properties of undefined`
+- **해결 시도 2**: try-catch로 안전하게 처리 → 여전히 `Target closed` 에러 발생
+- **해결 시도 3**: stealth 플러그인을 sourceurl evasion 없이 재설정 → 복잡성 증가
+
+#### **4단계: Gmail API 문제 발생 및 해결**
+- **문제 발생**: `Token has been expired or revoked` 에러
+- **원인 분석**: Google OAuth 2.0 `refresh_token` 만료
+- **해결 과정**: 
+  - OAuth Playground에서 새로운 `refresh_token` 발급
+  - `.env.local` 파일 업데이트
+  - Gmail API 정상 작동 확인
+
+#### **5단계: 로컬 vs Render 환경 차이 확인**
+- **로컬 Inspector 모드**: 정상 작동 (브라우저 창이 보임)
+- **로컬 Headless 모드**: `sourceurl` evasion으로 `Target closed` 에러
+- **Render 환경**: `Execution context was destroyed` 에러 (네비게이션 문제)
+
+### **현재 상황 분석**
+
+#### **성공한 부분**
+- ✅ **Gmail API 문제 해결**: 새로운 `refresh_token`으로 정상 작동
+- ✅ **로컬 Inspector 모드**: 전체 스크래핑 플로우 정상 작동
+- ✅ **Puppeteer-extra + Stealth**: 기본 설정 완료
+
+#### **해결되지 않은 부분**
+- ❌ **로컬 Headless 모드**: `sourceurl` evasion 문제
+- ❌ **Render 환경**: `Execution context was destroyed` 에러
+- ❌ **봇 탐지 우회**: stealth 플러그인이 완전히 작동하지 않음
+
+### **핵심 교훈**
+
+#### **Puppeteer-extra + Stealth의 한계**
+- **봇 탐지 우회**: 완벽하지 않음, 사이트별로 효과 차이
+- **Sourceurl evasion**: 특정 사이트와 호환성 문제 발생 가능
+- **환경별 차이**: 로컬과 클라우드 환경에서 다른 동작
+
+#### **SBI 증권 사이트의 특성**
+- **강력한 봇 탐지**: 일반적인 stealth 기법으로 우회 어려움
+- **도메인 리다이렉트**: 로그인 후 `www.sbisec.co.jp` → `site2.sbisec.co.jp` → `site.sbisec.co.jp`
+- **세션 관리**: 도메인 간 세션 공유 및 안정성 문제
+
+### **다음 단계 제안**
+
+#### **1. Stealth 플러그인 최적화 (우선순위: 높음)**
+- **Sourceurl evasion 완전 제거**: 다른 방법으로 우회
+- **추가 stealth evasion 활성화**: 더 강력한 봇 탐지 우회
+- **브라우저 인수 최적화**: Render 환경에 특화된 설정
+
+#### **2. 네비게이션 안정성 향상 (우선순위: 높음)**
+- **페이지 로딩 대기 방식 개선**: `networkidle2` → `domcontentloaded` 등
+- **타임아웃 증가**: 10초 → 30초 이상
+- **재시도 로직 추가**: 네비게이션 실패 시 자동 재시도
+
+#### **3. 대안 접근 방식 고려 (우선순위: 중간)**
+- **API 기반 스크래핑**: SBI 증권에서 공식 API 제공 여부 확인
+- **모바일 버전 활용**: `m.sbisec.co.jp` 도메인 활용
+- **세션 지속성 개선**: 쿠키/세션 관리 최적화
+
+### **참고 사항**
+- **Puppeteer-extra + Stealth는 만능 해결책이 아님**: 사이트별로 효과 차이
+- **로컬과 클라우드 환경의 차이**: Inspector 모드 vs Headless 모드
+- **SBI 증권의 봇 탐지 수준**: 일반적인 stealth 기법으로는 우회 어려움
+- **단계별 접근의 중요성**: 한 번에 모든 문제를 해결하려 하지 말 것
