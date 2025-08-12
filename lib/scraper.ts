@@ -446,8 +446,10 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     // 페이지 로딩 완료 대기 (networkidle 대신 더 간단한 방법 사용)
     await page.waitForLoadState('domcontentloaded');
     
-    // 잠시 대기 (동적 콘텐츠 로딩을 위해)
-    await page.waitForTimeout(5000);  // 5초로 증가
+    // 페이지 안정화 대기 (동적 콘텐츠 로딩을 위해)
+    await page.waitForLoadState('networkidle');  // 네트워크 활동 완료까지 대기
+    await page.waitForTimeout(5000);  // 추가 안정화 시간
+    console.log('페이지가 완전히 안정화되었습니다. 이메일 버튼을 찾습니다...');
 
     // "Eメールを送信する" 버튼 찾기 시도 (강화된 fallback 로직)
     let emailButton = null;
@@ -962,49 +964,67 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     // 5. 최신 배당금 정보 추출 (CSV 다운로드 방식)
     console.log('CSV 다운로드 방식으로 배당금 정보를 스크래핑합니다...');
 
+    // CSV 다운로드 버튼을 찾기 전에 배당금 이력 존재 여부 확인
+    console.log('배당금 이력 존재 여부를 확인합니다...');
+    try {
+      const noHistoryMessage = await page.locator('p.table-message:has-text("指定された条件での履歴は見つかりませんでした")').isVisible();
+      if (noHistoryMessage) {
+        console.log('배당금 이력이 없습니다. CSV 버튼이 표시되지 않습니다.');
+        return {
+          text: '지정된 기간에 배당금 이력이 없습니다.',
+          source: 'SBI Securities (No Data)'
+        };
+      } else {
+        console.log('배당금 이력이 있습니다. CSV 버튼을 찾습니다...');
+      }
+    } catch (e) {
+      console.log('배당금 이력 확인 중 오류:', e);
+      console.log('이력 확인에 실패했지만 CSV 버튼 찾기를 계속합니다...');
+    }
+
     // CSV 다운로드 버튼을 찾습니다 (강화된 fallback 로직)
     console.log('CSV 다운로드 버튼을 찾습니다...');
     
     let downloadButton = null;
     let csvButtonFound = false;
     
-    // 1차: 역할 기반 검색
+    // 1차: 클래스 + 부분 텍스트 (가장 정확)
     try {
-      downloadButton = page.getByRole('button', { name: /CSVダウンロード/ });
+      downloadButton = page.locator('button.text-xs.link-light:has-text("CSV")');
       const isVisible = await downloadButton.isVisible();
       if (isVisible) {
         csvButtonFound = true;
-        console.log('역할로 CSV 다운로드 버튼을 찾았습니다');
+        console.log('클래스 + 부분 텍스트로 CSV 다운로드 버튼을 찾았습니다');
       }
     } catch {
-      console.log('역할 기반 버튼을 찾을 수 없습니다. 폴백 선택자를 시도합니다...');
+      console.log('클래스 + 부분 텍스트 검색이 실패했습니다. 폴백 선택자를 시도합니다...');
     }
     
-    // 2차: CSS 클래스 기반 검색
+    // 2차: 부분 텍스트만 (CSV만으로 검색)
     if (!csvButtonFound) {
       try {
-        downloadButton = page.locator('button.text-xs.link-light:has-text("CSVダウンロード")');
+        downloadButton = page.locator('button:has-text("CSV")');
         const isVisible = await downloadButton.isVisible();
         if (isVisible) {
           csvButtonFound = true;
-          console.log('CSS 클래스로 CSV 다운로드 버튼을 찾았습니다');
+          console.log('부분 텍스트로 CSV 다운로드 버튼을 찾았습니다');
         }
       } catch {
-        console.log('CSS 클래스 기반 검색도 실패했습니다');
+        console.log('부분 텍스트 검색도 실패했습니다');
       }
     }
     
-    // 3차: 텍스트 기반 검색
+    // 3차: 클래스만 (text-xs link-light)
     if (!csvButtonFound) {
       try {
-        downloadButton = page.locator('button:has-text("CSVダウンロード")');
+        downloadButton = page.locator('button.text-xs.link-light');
         const isVisible = await downloadButton.isVisible();
         if (isVisible) {
           csvButtonFound = true;
-          console.log('텍스트 기반으로 CSV 다운로드 버튼을 찾았습니다');
+          console.log('클래스만으로 CSV 다운로드 버튼을 찾았습니다');
         }
       } catch {
-        console.log('텍스트 기반 검색도 실패했습니다');
+        console.log('클래스만 검색도 실패했습니다');
       }
     }
     
