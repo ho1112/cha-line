@@ -6,6 +6,12 @@ import { sendLineMessage } from './lib/notification';
 
 (async () => {
   console.log('Starting Playwright debug script...');
+  
+  // Inspector 모드 설정
+  if (process.env.PWDEBUG === '1') {
+    console.log('Inspector 모드가 활성화되었습니다. Inspector 창에서 시작 버튼을 클릭하면 실행됩니다...');
+  }
+  
   try {
     // AUTH_ONLY=0 이면 전체 플로우 실행, 그 외에는 인증까지만
     const debugAuthOnly = process.env.AUTH_ONLY !== '0';

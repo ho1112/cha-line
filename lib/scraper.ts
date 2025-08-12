@@ -35,17 +35,24 @@ export async function checkLoginPage(options?: { prefillCredentials?: boolean })
   const loginUrl = 'https://www.sbisec.co.jp/ETGate';
   try {
     const isDebugMode = process.env.PWDEBUG === '1';
-    const remoteWsEndpoint = process.env.BROWSER_WS_ENDPOINT;
     if (isDebugMode) {
       const localChromePath = process.env.LOCAL_CHROME_PATH;
       if (localChromePath) {
-        browser = await chromium.launch({ headless: false, executablePath: localChromePath });
+        browser = await chromium.launch({ 
+          headless: false, 
+          executablePath: localChromePath
+        });
       } else {
         try {
-          browser = await chromium.launch({ headless: false });
+          browser = await chromium.launch({ 
+            headless: false
+          });
         } catch (e) {
           // macOS 기본 경로로 폴백
-          browser = await chromium.launch({ headless: false, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
+          browser = await chromium.launch({ 
+            headless: false, 
+            executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+          });
         }
       }
     } else {
@@ -60,7 +67,7 @@ export async function checkLoginPage(options?: { prefillCredentials?: boolean })
     const requiredSelectors = [
       'input[name="user_id"]',
       'input[name="user_password"]',
-      'button[name="ACT_login"]',
+      'input[name="ACT_login"]',
     ];
 
     const results: { [key: string]: boolean } = {};
@@ -127,7 +134,6 @@ async function getAuthUrlFromGmail(options?: { sinceMs?: number; lastSeenMessage
     ];
     
     let listResponse = null;
-    let usedQuery = '';
     
     for (const query of searchQueries) {
       try {
@@ -139,7 +145,6 @@ async function getAuthUrlFromGmail(options?: { sinceMs?: number; lastSeenMessage
         });
         
         if (listResponse.data.messages && listResponse.data.messages.length > 0) {
-          usedQuery = query;
           console.log(`쿼리로 ${listResponse.data.messages.length}개의 이메일을 찾았습니다: ${query}`);
           
           // 디버깅: 첫 번째 이메일의 제목 확인
@@ -179,7 +184,6 @@ async function getAuthUrlFromGmail(options?: { sinceMs?: number; lastSeenMessage
     // 5. 후보 메시지들에서 적절한 메시지 선택 (가장 최신 우선)
     const sinceMs = options?.sinceMs ?? 0;
     const lastSeen = options?.lastSeenMessageId ?? null;
-    const skewMs = 1000; // 클럭 오차 보정
     
     console.log(`이후 이메일을 찾는 중: ${new Date(sinceMs).toISOString()}`);
     
@@ -199,10 +203,12 @@ async function getAuthUrlFromGmail(options?: { sinceMs?: number; lastSeenMessage
       const internalDate = internalDateStr ? Number(internalDateStr) : 0;
       
       console.log(`메시지 ${id} 날짜: ${new Date(internalDate).toISOString()}, sinceMs: ${new Date(sinceMs).toISOString()}`);
+      console.log(`시간 비교 상세: ${internalDate} >= ${sinceMs - (30 * 1000)} = ${internalDate >= (sinceMs - (30 * 1000))}`);
+      console.log(`실제 숫자 값: ${internalDate} >= ${sinceMs - (30 * 1000)}`);
+      console.log(`internalDate 타입: ${typeof internalDate}, sinceMs 타입: ${typeof sinceMs}`);
       
-      // sinceMs 조건을 완화: 5분 전부터의 이메일도 허용
-      const timeWindow = sinceMs - (5 * 60 * 1000); // 5분 전
-      if (payload && internalDate >= timeWindow) {
+      // sinceMs 이후에 도착한 이메일만 허용 (30초 여유 허용)
+      if (payload && internalDate >= (sinceMs - (30 * 1000))) {
         pickedId = id;
         pickedPayload = payload;
         console.log(`선택된 메시지 ${id}, 날짜: ${new Date(internalDate).toISOString()}`);
@@ -302,7 +308,11 @@ async function waitForAuthUrlFromGmail(options?: { timeoutMs?: number; pollInter
     console.log(`Gmail 검색 시도 ${attemptCount}...`);
     
     const found = await getAuthUrlFromGmail({ sinceMs, lastSeenMessageId: lastSeen }).catch(() => null);
-    if (found) return found;
+    if (found) {
+      // 찾은 이메일의 ID를 lastSeen으로 업데이트
+      lastSeen = found.messageId;
+      return found;
+    }
     
     const elapsed = Date.now() - start;
     console.log(`아직 인증 URL을 찾지 못했습니다 (경과: ${elapsed}ms, 남은 시간: ${timeoutMs - elapsed}ms)`);
@@ -338,11 +348,11 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
       }
     } else {
       if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
-        // Running in Vercel/production mode. Launching puppeteer directly...
-        console.log('Vercel 환경이 감지되었습니다. puppeteer를 직접 사용합니다...');
+        // Running in Vercel/production mode. Launching Playwright directly...
+        console.log('Vercel 환경이 감지되었습니다. Playwright를 직접 사용합니다...');
         
-        // Vercel에서 Chrome 경로 사용하지 않고 기본 puppeteer 사용
-        console.log('executablePath 없이 기본 puppeteer를 사용합니다');
+        // Vercel에서 Chrome 경로 사용하지 않고 기본 Playwright 사용
+        console.log('executablePath 없이 기본 Playwright를 사용합니다');
         
         browser = await chromium.launch({
           headless: true,
@@ -358,7 +368,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
           ]
         });
       } else {
-        console.log('Vercel/프로덕션 모드로 실행 중입니다. puppeteer를 시작합니다...');
+        console.log('Vercel/프로덕션 모드로 실행 중입니다. Playwright를 시작합니다...');
         browser = await chromium.launch({
           headless: true,
           args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-accelerated-2d-canvas', '--no-first-run', '--no-zygote', '--single-process', '--disable-gpu']
@@ -393,7 +403,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     // 로그인 버튼 클릭과 페이지 이동을 함께 기다립니다.
     await Promise.all([
         page.waitForNavigation({ waitUntil: 'domcontentloaded' }),
-        page.click('button[name="ACT_login"]'),
+        page.click('input[name="ACT_login"]'),
     ]);
     console.log('ID/비밀번호로 로그인했습니다.');
 
@@ -480,24 +490,11 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     // 새 페이지 생성
     let authPage = null;
     let authTabAttempts = 0;
-    const maxAuthTabAttempts = 10; // 더 많은 시도
     
-    while (authTabAttempts < maxAuthTabAttempts && !authPage) {
+    while (authTabAttempts < 10 && !authPage) {
       try {
         authTabAttempts++;
         console.log(`인증 탭 생성 시도 ${authTabAttempts}...`);
-        
-        // 컨텍스트 상태 확인 (타입 안전하게)
-        try {
-          // 컨텍스트가 살아있는지 테스트
-          await context.newPage();
-          // 테스트 페이지 즉시 닫기
-          const testPage = await context.newPage();
-          await testPage.close();
-        } catch (contextError) {
-          console.log('컨텍스트 테스트 실패, 새 페이지를 생성할 수 없습니다:', contextError);
-          throw new Error('Browser context is not working properly');
-        }
         
         // 새 페이지 생성
         authPage = await context.newPage();
@@ -525,8 +522,8 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
           authPage = null;
         }
         
-        if (authTabAttempts >= maxAuthTabAttempts) {
-          throw new Error(`${maxAuthTabAttempts}번 시도 후에도 인증 탭을 생성하고 이동할 수 없습니다`);
+        if (authTabAttempts >= 10) {
+          throw new Error(`10번 시도 후에도 인증 탭을 생성하고 이동할 수 없습니다`);
         }
         
         // 더 긴 대기 시간
@@ -547,9 +544,8 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     
     let codeElement = null;
     let codeAttempts = 0;
-    const maxCodeAttempts = 10;
     
-    while (codeAttempts < maxCodeAttempts && !codeElement) {
+    while (codeAttempts < 10 && !codeElement) {
       try {
         codeAttempts++;
         console.log(`코드 표시 요소 찾기 시도 ${codeAttempts}...`);
@@ -568,8 +564,8 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
         break;
       } catch (e) {
         console.log(`시도 ${codeAttempts} 실패:`, e);
-        if (codeAttempts >= maxCodeAttempts) {
-          throw new Error(`${maxCodeAttempts}번 시도 후에도 코드 표시 요소를 찾을 수 없습니다`);
+        if (codeAttempts >= 10) {
+          throw new Error(`10번 시도 후에도 코드 표시 요소를 찾을 수 없습니다`);
         }
         // 점진적으로 대기 시간 증가
         const waitTime = Math.min(codeAttempts * 1000, 3000);
@@ -592,9 +588,8 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     
     let inputField = null;
     let inputAttempts = 0;
-    const maxInputAttempts = 10;
     
-    while (inputAttempts < maxInputAttempts && !inputField) {
+    while (inputAttempts < 10 && !inputField) {
       try {
         inputAttempts++;
         console.log(`활성화된 입력 필드 찾기 시도 ${inputAttempts}...`);
@@ -613,8 +608,8 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
         break;
       } catch (e) {
         console.log(`시도 ${inputAttempts} 실패:`, e);
-        if (inputAttempts >= maxInputAttempts) {
-          throw new Error(`${maxInputAttempts}번 시도 후에도 활성화된 입력 필드를 찾을 수 없습니다`);
+        if (inputAttempts >= 10) {
+          throw new Error(`10번 시도 후에도 활성화된 입력 필드를 찾을 수 없습니다`);
         }
         // 점진적으로 대기 시간 증가
         const waitTime = Math.min(inputAttempts * 1000, 3000);
@@ -646,8 +641,15 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
       console.log('JavaScript로 인증 코드를 제출했습니다');
     }
     
-    // 탭 B는 열어둔 상태로 유지 (자동으로 닫힐 수 있음)
-    console.log('인증 코드가 제출되었습니다. 인증 탭을 열어둡니다...');
+    // 인증 완료 후 탭2를 닫고 탭1로 돌아가기
+    console.log('인증 코드가 제출되었습니다. 인증 탭을 닫고 메인 탭으로 돌아갑니다...');
+    
+    try {
+      await authPage.close();
+      console.log('인증 탭을 성공적으로 닫았습니다');
+    } catch (closeError) {
+      console.log('인증 탭 닫기 실패, 계속 진행합니다:', closeError);
+    }
 
     // 5. 원래 페이지로 돌아와서 최종 등록
     console.log('원래 페이지로 돌아와서 최종 등록을 진행합니다.');
@@ -665,9 +667,8 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     // 체크박스 찾기
     let deviceCheckbox = null;
     let checkboxAttempts = 0;
-    const maxCheckboxAttempts = 15; // 더 많은 시도
     
-    while (checkboxAttempts < maxCheckboxAttempts && !deviceCheckbox) {
+    while (checkboxAttempts < 15 && !deviceCheckbox) {
       try {
         checkboxAttempts++;
         console.log(`디바이스 체크박스 찾기 시도 ${checkboxAttempts}...`);
@@ -686,8 +687,8 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
         break;
       } catch (e) {
         console.log(`시도 ${checkboxAttempts} 실패:`, e);
-        if (checkboxAttempts >= maxCheckboxAttempts) {
-          throw new Error(`${maxCheckboxAttempts}번 시도 후에도 디바이스 체크박스를 찾을 수 없습니다`);
+        if (checkboxAttempts >= 15) {
+          throw new Error(`15번 시도 후에도 디바이스 체크박스를 찾을 수 없습니다`);
         }
         // 점진적으로 대기 시간 증가
         const waitTime = Math.min(checkboxAttempts * 1000, 5000);
@@ -729,9 +730,8 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     console.log('디바이스 등록 버튼을 찾습니다...');
     let deviceAuthButton = null;
     let buttonAttempts = 0;
-    const maxButtonAttempts = 10;
     
-    while (buttonAttempts < maxButtonAttempts && !deviceAuthButton) {
+    while (buttonAttempts < 10 && !deviceAuthButton) {
       try {
         buttonAttempts++;
         console.log(`디바이스 인증 버튼 찾기 시도 ${buttonAttempts}...`);
@@ -748,8 +748,8 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
         break;
       } catch (e) {
         console.log(`시도 ${buttonAttempts} 실패:`, e);
-        if (buttonAttempts >= maxButtonAttempts) {
-          throw new Error(`${maxButtonAttempts}번 시도 후에도 디바이스 인증 버튼을 찾을 수 없습니다`);
+        if (buttonAttempts >= 10) {
+          throw new Error(`10번 시도 후에도 디바이스 인증 버튼을 찾을 수 없습니다`);
         }
         // 더 긴 대기 시간
         await new Promise(resolve => setTimeout(resolve, 2000));
@@ -770,9 +770,8 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     // 페이지 상태 확인 (안전하게)
     let currentUrl = '';
     let attempts = 0;
-    const maxAttempts = 10;
     
-    while (attempts < maxAttempts) {
+    while (attempts < 10) {
       try {
         attempts++;
         console.log(`페이지 상태 확인 시도 ${attempts}...`);
@@ -797,7 +796,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
         
       } catch (e) {
         console.log(`시도 ${attempts} 실패:`, e);
-        if (attempts >= maxAttempts) {
+        if (attempts >= 10) {
           console.log('최대 시도 횟수에 도달했습니다. 계속 진행합니다...');
           break;
         }
@@ -844,9 +843,8 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     // 안전한 페이지 이동
     let navigationSuccess = false;
     let navAttempts = 0;
-    const maxNavAttempts = 5;
     
-    while (navAttempts < maxNavAttempts && !navigationSuccess) {
+    while (navAttempts < 5 && !navigationSuccess) {
       try {
         navAttempts++;
         console.log(`배당금 페이지로 이동 시도 ${navAttempts}...`);
@@ -868,8 +866,8 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
         
       } catch (e) {
         console.log(`시도 ${navAttempts} 실패:`, e);
-        if (navAttempts >= maxNavAttempts) {
-          throw new Error(`${maxNavAttempts}번 시도 후에도 배당금 페이지로 이동할 수 없습니다`);
+        if (navAttempts >= 5) {
+          throw new Error(`5번 시도 후에도 배당금 페이지로 이동할 수 없습니다`);
         }
         
         // 더 긴 대기 시간
