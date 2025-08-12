@@ -849,41 +849,17 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     // 디바이스 등록 완료 후 안정화 대기
     console.log('디바이스 등록 완료를 기다립니다...');
     
-    // 페이지 상태 확인 (안전하게)
-    let currentUrl = '';
-    let attempts = 0;
+    // 메인 페이지로 리다이렉트될 때까지 대기
+    await page.waitForLoadState('domcontentloaded');
     
-    while (attempts < 10) {
-      try {
-        attempts++;
-        console.log(`페이지 상태 확인 시도 ${attempts}...`);
-        
-        // 페이지가 닫혔는지 확인
-        if (page.isClosed()) {
-          console.log('페이지가 닫혔습니다. 진행할 수 없습니다');
-          throw new Error('디바이스 등록 중에 페이지가 닫혔습니다');
-        }
-        
-        currentUrl = await page.url();
-                  console.log(`디바이스 등록 후 현재 URL (시도 ${attempts}):`, currentUrl);
-        
-                  // 메인페이지로 리다이렉트되었는지 확인
-          if (currentUrl.includes('sbisec.co.jp') && !currentUrl.includes('deviceAuthentication')) {
-            console.log('메인 페이지로 성공적으로 리다이렉트되었습니다');
-            break;
-          } else {
-            console.log('아직 디바이스 인증 페이지에 있습니다. 기다립니다...');
-            await new Promise(resolve => setTimeout(resolve, 3000));  // 3초로 증가
-          }
-        
-      } catch (e) {
-        console.log(`시도 ${attempts} 실패:`, e);
-        if (attempts >= 10) {
-          console.log('최대 시도 횟수에 도달했습니다. 계속 진행합니다...');
-          break;
-        }
-        await new Promise(resolve => setTimeout(resolve, 3000));  // 3초로 증가
-      }
+    // 로그인 완료 확인 (assets-buttons 요소가 나타날 때까지)
+    console.log('로그인 완료를 확인합니다...');
+    try {
+      await page.waitForSelector('.seeds-flex.assets-buttons', { timeout: 30000 });
+      console.log('로그인이 완료되었습니다. 메인 페이지에 정상 접근 가능합니다.');
+    } catch (e) {
+      console.log('로그인 완료 확인 실패:', e);
+      throw new Error('디바이스 등록 후 로그인 완료를 확인할 수 없습니다');
     }
 
     if (options.debugAuthOnly) {
