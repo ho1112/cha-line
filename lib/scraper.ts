@@ -400,6 +400,10 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
 
     // 로그인 페이지 진입 완료
 
+    // 에러가 나는 부분 바로 앞에서 스크린샷 찍기
+    await page.screenshot({ path: '/tmp/sbi-login-page.png', fullPage: true });
+    console.log('로그인 페이지 스크린샷을 /tmp/sbi-login-page.png에 저장했습니다.');
+
     // 2. 아이디와 비밀번호 입력
     await page.fill('input[name="user_id"]', process.env.SBI_ID!);
     await page.fill('input[name="user_password"]', process.env.SBI_PASSWORD!);
