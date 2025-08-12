@@ -982,97 +982,15 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
       console.log('이력 확인에 실패했지만 CSV 버튼 찾기를 계속합니다...');
     }
 
-    // CSV 다운로드 버튼을 찾습니다 (강화된 fallback 로직)
+    // CSV 다운로드 버튼을 찾습니다
     console.log('CSV 다운로드 버튼을 찾습니다...');
     
-    let downloadButton = null;
-    let csvButtonFound = false;
+    // 배당금 데이터 테이블이 로딩되었는지 확인
+    await page.waitForSelector('#dividends-summary .table', { timeout: 30000 });
+    await page.waitForTimeout(2000); // 추가 안정화
     
-    // 1차: 클래스 + 부분 텍스트 (가장 정확)
-    try {
-      downloadButton = page.locator('button.text-xs.link-light:has-text("CSV")');
-      const isVisible = await downloadButton.isVisible();
-      if (isVisible) {
-        csvButtonFound = true;
-        console.log('클래스 + 부분 텍스트로 CSV 다운로드 버튼을 찾았습니다');
-      }
-    } catch {
-      console.log('클래스 + 부분 텍스트 검색이 실패했습니다. 폴백 선택자를 시도합니다...');
-    }
-    
-    // 2차: 부분 텍스트만 (CSV만으로 검색)
-    if (!csvButtonFound) {
-      try {
-        downloadButton = page.locator('button:has-text("CSV")');
-        const isVisible = await downloadButton.isVisible();
-        if (isVisible) {
-          csvButtonFound = true;
-          console.log('부분 텍스트로 CSV 다운로드 버튼을 찾았습니다');
-        }
-      } catch {
-        console.log('부분 텍스트 검색도 실패했습니다');
-      }
-    }
-    
-    // 3차: 클래스만 (text-xs link-light)
-    if (!csvButtonFound) {
-      try {
-        downloadButton = page.locator('button.text-xs.link-light');
-        const isVisible = await downloadButton.isVisible();
-        if (isVisible) {
-          csvButtonFound = true;
-          console.log('클래스만으로 CSV 다운로드 버튼을 찾았습니다');
-        }
-      } catch {
-        console.log('클래스만 검색도 실패했습니다');
-      }
-    }
-    
-    // 4차: 더 넓은 범위 검색
-    if (!csvButtonFound) {
-      try {
-        downloadButton = page.locator('a:has-text("CSV"), button:has-text("CSV"), [role="button"]:has-text("CSV")');
-        const isVisible = await downloadButton.isVisible();
-        if (isVisible) {
-          csvButtonFound = true;
-          console.log('넓은 범위 검색으로 CSV 다운로드 버튼을 찾았습니다');
-        }
-      } catch {
-        console.log('넓은 범위 검색도 실패했습니다');
-      }
-    }
-    
-    // 5차: 페이지 내용 분석으로 디버깅
-    if (!csvButtonFound) {
-      console.log('모든 검색 방법이 실패했습니다. 페이지 내용을 분석합니다...');
-      try {
-        const pageContent = await page.content();
-        const csvButtonMatches = pageContent.match(/CSV[^<]*/g);
-        if (csvButtonMatches) {
-          console.log('페이지에서 CSV 관련 텍스트 발견:', csvButtonMatches.slice(0, 5));
-        }
-        
-        // 모든 버튼과 링크 찾기
-        const allButtons = await page.locator('button, a, [role="button"]').all();
-        console.log(`페이지에 총 ${allButtons.length}개의 버튼/링크가 있습니다`);
-        
-        for (let i = 0; i < Math.min(allButtons.length, 10); i++) {
-          try {
-            const text = await allButtons[i].textContent();
-            if (text && text.includes('CSV')) {
-              console.log(`CSV 관련 요소 발견 (${i}번째):`, text.trim());
-            }
-          } catch (e) {
-            // 개별 요소 텍스트 읽기 실패는 무시
-          }
-        }
-      } catch (e) {
-        console.log('페이지 내용 분석 중 오류:', e);
-      }
-      
-      throw new Error('CSV 다운로드 버튼을 찾을 수 없습니다. 페이지 내용을 확인해주세요.');
-    }
-    
+    const downloadButton = page.locator('button.text-xs.link-light:has-text("CSV")');
+    await downloadButton.waitFor({ state: 'visible', timeout: 30000 });
     console.log('CSV 다운로드 버튼을 찾았습니다. 다운로드를 진행합니다...');
 
     const [download] = await Promise.all([
