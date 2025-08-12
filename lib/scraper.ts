@@ -943,6 +943,23 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
           timeout: 120000  // 120초(2분)로 증가
         });
         console.log('배당금 페이지로 성공적으로 이동했습니다');
+        
+        // 배당금 페이지로 이동 후 URL 확인
+        let currentUrl = page.url();
+        if (!currentUrl.includes('dividends')) {
+          console.log('배당금 페이지로 이동하지 못했습니다. 현재 URL:', currentUrl);
+          console.log('다시 시도합니다...');
+          
+          // 다시 배당금 페이지로 이동
+          await page.goto(dividendUrl, { waitUntil: 'domcontentloaded', timeout: 120000 });
+          currentUrl = page.url();
+          
+          if (!currentUrl.includes('dividends')) {
+            throw new Error('배당금 페이지로 이동에 실패했습니다. 현재 URL: ' + currentUrl);
+          }
+          console.log('재시도 후 올바른 배당금 페이지에 도착했습니다');
+        }
+        
         navigationSuccess = true;
         break;
         
@@ -1002,10 +1019,6 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     } else {
       console.log('CSV 다운로드 텍스트가 페이지에 존재하지 않습니다');
     }
-    
-    // 스크린샷 저장 (디버깅용)
-    await page.screenshot({ path: '/tmp/dividend-page-debug.png', fullPage: true });
-    console.log('디버깅용 스크린샷을 저장했습니다: /tmp/dividend-page-debug.png');
     
     // 배당금 데이터 테이블이 로딩되었는지 확인
     await page.waitForSelector('#dividends-summary .table', { timeout: 30000 });
