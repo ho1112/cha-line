@@ -367,7 +367,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
       } else {
         console.log('로컬 개발 모드로 실행 중입니다. Playwright를 시작합니다...');
         browser = await chromium.launch({
-          headless: true,  // 로컬에서도 헤드리스 모드로 실행
+          headless: false,  // 로컬에서도 헤드리스 모드로 실행
           args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-accelerated-2d-canvas', '--no-first-run', '--no-zygote', '--single-process', '--disable-gpu']
         });
       }
@@ -399,10 +399,6 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     });
 
     // 로그인 페이지 진입 완료
-
-    // 에러가 나는 부분 바로 앞에서 스크린샷 찍기
-    await page.screenshot({ path: '/tmp/sbi-login-page.png', fullPage: true });
-    console.log('로그인 페이지 스크린샷을 /tmp/sbi-login-page.png에 저장했습니다.');
 
     // 2. 아이디와 비밀번호 입력
     await page.fill('input[name="user_id"]', process.env.SBI_ID!);
@@ -890,39 +886,95 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     // 5. 최신 배당금 정보 추출 (CSV 다운로드 방식)
     console.log('CSV 다운로드 방식으로 배당금 정보를 스크래핑합니다...');
 
-    // CSV 다운로드 버튼을 즉시 찾고 클릭 (waitFor 없이)
+    // CSV 다운로드 버튼을 찾습니다 (강화된 fallback 로직)
     console.log('CSV 다운로드 버튼을 찾습니다...');
     
-    let downloadButton = page.getByRole('button', { name: /CSVダウンロード/ });
+    let downloadButton = null;
     let buttonFound = false;
     
+    // 1차: 역할 기반 검색
     try {
-      // 버튼이 보이는지 즉시 확인 (타임아웃 없이)
+      downloadButton = page.getByRole('button', { name: /CSVダウンロード/ });
       const isVisible = await downloadButton.isVisible();
       if (isVisible) {
         buttonFound = true;
         console.log('역할로 CSV 다운로드 버튼을 찾았습니다');
       }
-          } catch {
-        console.log('역할 기반 버튼을 찾을 수 없습니다. 폴백 선택자를 시도합니다...');
-      }
+    } catch {
+      console.log('역할 기반 버튼을 찾을 수 없습니다. 폴백 선택자를 시도합니다...');
+    }
     
-          if (!buttonFound) {
-        try {
-          // 폴백 셀렉터로 시도
-          downloadButton = page.locator('button.text-xs.link-light:has-text("CSVダウンロード")');
-          const isVisible = await downloadButton.isVisible();
-          if (isVisible) {
-            buttonFound = true;
-            console.log('폴백 선택자로 CSV 다운로드 버튼을 찾았습니다');
-          }
-        } catch {
-          console.log('폴백 선택자도 실패했습니다');
-        }
-      }
-    
+    // 2차: CSS 클래스 기반 검색
     if (!buttonFound) {
-      throw new Error('CSV 다운로드 버튼을 찾을 수 없습니다');
+      try {
+        downloadButton = page.locator('button.text-xs.link-light:has-text("CSVダウンロード")');
+        const isVisible = await downloadButton.isVisible();
+        if (isVisible) {
+          buttonFound = true;
+          console.log('CSS 클래스로 CSV 다운로드 버튼을 찾았습니다');
+        }
+      } catch {
+        console.log('CSS 클래스 기반 검색도 실패했습니다');
+      }
+    }
+    
+    // 3차: 텍스트 기반 검색
+    if (!buttonFound) {
+      try {
+        downloadButton = page.locator('button:has-text("CSVダウンロード")');
+        const isVisible = await downloadButton.isVisible();
+        if (isVisible) {
+          buttonFound = true;
+          console.log('텍스트 기반으로 CSV 다운로드 버튼을 찾았습니다');
+        }
+      } catch {
+        console.log('텍스트 기반 검색도 실패했습니다');
+      }
+    }
+    
+    // 4차: 더 넓은 범위 검색
+    if (!buttonFound) {
+      try {
+        downloadButton = page.locator('a:has-text("CSV"), button:has-text("CSV"), [role="button"]:has-text("CSV")');
+        const isVisible = await downloadButton.isVisible();
+        if (isVisible) {
+          buttonFound = true;
+          console.log('넓은 범위 검색으로 CSV 다운로드 버튼을 찾았습니다');
+        }
+      } catch {
+        console.log('넓은 범위 검색도 실패했습니다');
+      }
+    }
+    
+    // 5차: 페이지 내용 분석으로 디버깅
+    if (!buttonFound) {
+      console.log('모든 검색 방법이 실패했습니다. 페이지 내용을 분석합니다...');
+      try {
+        const pageContent = await page.content();
+        const csvButtonMatches = pageContent.match(/CSV[^<]*/g);
+        if (csvButtonMatches) {
+          console.log('페이지에서 CSV 관련 텍스트 발견:', csvButtonMatches.slice(0, 5));
+        }
+        
+        // 모든 버튼과 링크 찾기
+        const allButtons = await page.locator('button, a, [role="button"]').all();
+        console.log(`페이지에 총 ${allButtons.length}개의 버튼/링크가 있습니다`);
+        
+        for (let i = 0; i < Math.min(allButtons.length, 10); i++) {
+          try {
+            const text = await allButtons[i].textContent();
+            if (text && text.includes('CSV')) {
+              console.log(`CSV 관련 요소 발견 (${i}번째):`, text.trim());
+            }
+          } catch (e) {
+            // 개별 요소 텍스트 읽기 실패는 무시
+          }
+        }
+      } catch (e) {
+        console.log('페이지 내용 분석 중 오류:', e);
+      }
+      
+      throw new Error('CSV 다운로드 버튼을 찾을 수 없습니다. 페이지 내용을 확인해주세요.');
     }
     
     console.log('CSV 다운로드 버튼을 찾았습니다. 다운로드를 진행합니다...');
