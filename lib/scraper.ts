@@ -32,7 +32,7 @@ export async function checkLoginPage(options?: { prefillCredentials?: boolean })
   prefilled?: boolean;
 }> {
   let browser: any = null;
-  const loginUrl = 'https://www.sbisec.co.jp/ETGate';
+  const loginUrl = 'https://site2.sbisec.co.jp/ETGate/';
   try {
     const isDebugMode = process.env.PWDEBUG === '1';
     if (isDebugMode) {
@@ -393,7 +393,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
 
     // 1. SBI 증권 로그인 페이지로 이동
     console.log('SBI 증권 로그인 페이지로 이동합니다...');
-    await page.goto('https://www.sbisec.co.jp/ETGate', { 
+    await page.goto('https://site2.sbisec.co.jp/ETGate/', { 
       timeout: 120000,  // 120초(2분)로 증가
       waitUntil: 'domcontentloaded'  // 더 빠른 로딩 조건
     });
