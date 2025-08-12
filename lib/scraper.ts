@@ -447,35 +447,111 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     await page.waitForLoadState('domcontentloaded');
     
     // 잠시 대기 (동적 콘텐츠 로딩을 위해)
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(5000);  // 5초로 증가
 
-    // "Eメールを送信する" 버튼 찾기 시도 (여러 방법으로)
+    // "Eメールを送信する" 버튼 찾기 시도 (강화된 fallback 로직)
     let emailButton = null;
+    let buttonFound = false;
+    
+    // 1차: name 속성 기반 (가장 안정적)
     try {
-      // 1차: 텍스트 기반
-      emailButton = page.locator('button:has-text("Eメールを送信する")');
-      await emailButton.waitFor({ state: 'visible', timeout: 5000 });
-      console.log('텍스트로 이메일 버튼을 찾았습니다');
+      emailButton = page.locator('button[name="ACT_deviceotpcall"]');
+      await emailButton.waitFor({ state: 'visible', timeout: 15000 });  // 15초로 증가
+      buttonFound = true;
+      console.log('name 속성으로 이메일 버튼을 찾았습니다');
     } catch (e) {
-      console.log('텍스트 기반 버튼을 찾을 수 없습니다. 대안 선택자를 시도합니다...');
+      console.log('name 속성 기반 버튼을 찾을 수 없습니다. 대안 선택자를 시도합니다...');
+    }
+    
+    // 2차: CSS 클래스 기반
+    if (!buttonFound) {
       try {
-        // 2차: aria-label 기반
+        emailButton = page.locator('button.seeds-button-lg');
+        await emailButton.waitFor({ state: 'visible', timeout: 15000 });  // 15초로 증가
+        buttonFound = true;
+        console.log('CSS 클래스로 이메일 버튼을 찾았습니다');
+      } catch (e) {
+        console.log('CSS 클래스 기반 검색도 실패했습니다');
+      }
+    }
+    
+    // 3차: 텍스트 기반 (타임아웃 증가)
+    if (!buttonFound) {
+      try {
+        emailButton = page.locator('button:has-text("Eメールを送信する")');
+        await emailButton.waitFor({ state: 'visible', timeout: 15000 });  // 15초로 증가
+        buttonFound = true;
+        console.log('텍스트로 이메일 버튼을 찾았습니다');
+      } catch (e) {
+        console.log('텍스트 기반 버튼을 찾을 수 없습니다. 대안 선택자를 시도합니다...');
+      }
+    }
+    
+    // 2차: aria-label 기반
+    if (!buttonFound) {
+      try {
         emailButton = page.locator('[aria-label*="メール"], [aria-label*="email"]');
-        await emailButton.waitFor({ state: 'visible', timeout: 5000 });
+        await emailButton.waitFor({ state: 'visible', timeout: 15000 });  // 15초로 증가
+        buttonFound = true;
         console.log('aria-label으로 이메일 버튼을 찾았습니다');
       } catch (e2) {
-        try {
-          // 3차: 일반적인 버튼 선택자
-          emailButton = page.locator('button').filter({ hasText: /メール|email/i });
-          await emailButton.waitFor({ state: 'visible', timeout: 5000 });
-          console.log('일반 선택자로 이메일 버튼을 찾았습니다');
-        } catch (e3) {
-          console.log('모든 버튼 찾기 방법이 실패했습니다. 현재 페이지 내용:');
-          const pageContent = await page.content();
-          console.log('페이지 HTML 미리보기:', pageContent.substring(0, 1000));
-          throw new Error('페이지에서 이메일 버튼을 찾을 수 없습니다');
-        }
+        console.log('aria-label 기반 검색도 실패했습니다');
       }
+    }
+    
+    // 3차: 일반적인 버튼 선택자
+    if (!buttonFound) {
+      try {
+        emailButton = page.locator('button').filter({ hasText: /メール|email/i });
+        await emailButton.waitFor({ state: 'visible', timeout: 15000 });  // 15초로 증가
+        buttonFound = true;
+        console.log('일반 선택자로 이메일 버튼을 찾았습니다');
+      } catch (e3) {
+        console.log('일반 선택자 검색도 실패했습니다');
+      }
+    }
+    
+    // 4차: 더 넓은 범위 검색
+    if (!buttonFound) {
+      try {
+        emailButton = page.locator('a:has-text("メール"), button:has-text("メール"), [role="button"]:has-text("メール")');
+        await emailButton.waitFor({ state: 'visible', timeout: 15000 });  // 15초로 증가
+        buttonFound = true;
+        console.log('넓은 범위 검색으로 이메일 버튼을 찾았습니다');
+      } catch (e4) {
+        console.log('넓은 범위 검색도 실패했습니다');
+      }
+    }
+    
+    // 5차: 페이지 내용 분석으로 디버깅
+    if (!buttonFound) {
+      console.log('모든 이메일 버튼 찾기 방법이 실패했습니다. 페이지 내용을 분석합니다...');
+      try {
+        const pageContent = await page.content();
+        const emailButtonMatches = pageContent.match(/メール[^<]*/g);
+        if (emailButtonMatches) {
+          console.log('페이지에서 메일 관련 텍스트 발견:', emailButtonMatches.slice(0, 5));
+        }
+        
+        // 모든 버튼과 링크 찾기
+        const allButtons = await page.locator('button, a, [role="button"]').all();
+        console.log(`페이지에 총 ${allButtons.length}개의 버튼/링크가 있습니다`);
+        
+        for (let i = 0; i < Math.min(allButtons.length, 10); i++) {
+          try {
+            const text = await allButtons[i].textContent();
+            if (text && text.includes('メール')) {
+              console.log(`메일 관련 요소 발견 (${i}번째):`, text.trim());
+            }
+          } catch (e) {
+            // 개별 요소 텍스트 읽기 실패는 무시
+          }
+        }
+      } catch (e) {
+        console.log('페이지 내용 분석 중 오류:', e);
+      }
+      
+      throw new Error('페이지에서 이메일 버튼을 찾을 수 없습니다');
     }
 
     // 버튼 클릭
@@ -563,7 +639,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
         }
         
         // 코드 요소 찾기
-        codeElement = await page.waitForSelector('#code-display', { timeout: 10000 });
+        codeElement = await page.waitForSelector('#code-display', { timeout: 30000 });  // 30초로 증가
         console.log('코드 표시 요소를 성공적으로 찾았습니다');
         break;
       } catch (e) {
@@ -607,7 +683,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
         }
         
         // 입력 필드 찾기
-        inputField = await authPage.waitForSelector('input[name="verifyCode"]:not([disabled])', { timeout: 10000 });
+        inputField = await authPage.waitForSelector('input[name="verifyCode"]:not([disabled])', { timeout: 30000 });  // 30초로 증가
         console.log('인증 코드 입력 필드가 이제 활성화되었습니다');
         break;
       } catch (e) {
@@ -661,7 +737,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     // 메인 페이지 안정화 대기
     console.log('메인 페이지 안정화를 기다립니다...');
     await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(3000); // 추가 안정화 시간
+    await page.waitForTimeout(8000); // 8초로 증가 (GCP 환경 고려)
     
     console.log('메인 페이지가 안정화되었습니다. 디바이스 등록을 진행합니다...');
     
@@ -686,7 +762,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
         }
         
         // 체크박스 찾기
-        deviceCheckbox = await page.waitForSelector('#device-checkbox', { timeout: 10000 });
+        deviceCheckbox = await page.waitForSelector('#device-checkbox', { timeout: 30000 });  // 30초로 증가
         console.log('디바이스 체크박스를 성공적으로 찾았습니다');
         break;
       } catch (e) {
@@ -728,7 +804,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     
     // 체크박스 체크 후 버튼 활성화 대기
     console.log('체크박스 체크 후 버튼이 활성화될 때까지 기다립니다...');
-    await page.waitForTimeout(5000); // 5초 대기
+    await page.waitForTimeout(10000); // 10초로 증가 (GCP 환경 고려)
 
     // 디바이스 등록 버튼을 안전하게 찾기
     console.log('디바이스 등록 버튼을 찾습니다...');
@@ -747,7 +823,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
         }
         
         // 더 긴 타임아웃으로 버튼 찾기
-        deviceAuthButton = await page.waitForSelector('#device-auth-otp', { timeout: 10000 });
+        deviceAuthButton = await page.waitForSelector('#device-auth-otp', { timeout: 30000 });  // 30초로 증가
         console.log('디바이스 인증 버튼을 성공적으로 찾았습니다');
         break;
       } catch (e) {
@@ -756,7 +832,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
           throw new Error(`10번 시도 후에도 디바이스 인증 버튼을 찾을 수 없습니다`);
         }
         // 더 긴 대기 시간
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 5000));  // 5초로 증가
       }
     }
     
@@ -795,7 +871,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
             break;
           } else {
             console.log('아직 디바이스 인증 페이지에 있습니다. 기다립니다...');
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await new Promise(resolve => setTimeout(resolve, 3000));  // 3초로 증가
           }
         
       } catch (e) {
@@ -804,7 +880,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
           console.log('최대 시도 횟수에 도달했습니다. 계속 진행합니다...');
           break;
         }
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 3000));  // 3초로 증가
       }
     }
 
@@ -875,7 +951,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
         }
         
         // 더 긴 대기 시간
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        await new Promise(resolve => setTimeout(resolve, 5000));  // 5초로 증가
       }
     }
     
@@ -890,14 +966,14 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     console.log('CSV 다운로드 버튼을 찾습니다...');
     
     let downloadButton = null;
-    let buttonFound = false;
+    let csvButtonFound = false;
     
     // 1차: 역할 기반 검색
     try {
       downloadButton = page.getByRole('button', { name: /CSVダウンロード/ });
       const isVisible = await downloadButton.isVisible();
       if (isVisible) {
-        buttonFound = true;
+        csvButtonFound = true;
         console.log('역할로 CSV 다운로드 버튼을 찾았습니다');
       }
     } catch {
@@ -905,12 +981,12 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     }
     
     // 2차: CSS 클래스 기반 검색
-    if (!buttonFound) {
+    if (!csvButtonFound) {
       try {
         downloadButton = page.locator('button.text-xs.link-light:has-text("CSVダウンロード")');
         const isVisible = await downloadButton.isVisible();
         if (isVisible) {
-          buttonFound = true;
+          csvButtonFound = true;
           console.log('CSS 클래스로 CSV 다운로드 버튼을 찾았습니다');
         }
       } catch {
@@ -919,12 +995,12 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     }
     
     // 3차: 텍스트 기반 검색
-    if (!buttonFound) {
+    if (!csvButtonFound) {
       try {
         downloadButton = page.locator('button:has-text("CSVダウンロード")');
         const isVisible = await downloadButton.isVisible();
         if (isVisible) {
-          buttonFound = true;
+          csvButtonFound = true;
           console.log('텍스트 기반으로 CSV 다운로드 버튼을 찾았습니다');
         }
       } catch {
@@ -933,12 +1009,12 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     }
     
     // 4차: 더 넓은 범위 검색
-    if (!buttonFound) {
+    if (!csvButtonFound) {
       try {
         downloadButton = page.locator('a:has-text("CSV"), button:has-text("CSV"), [role="button"]:has-text("CSV")');
         const isVisible = await downloadButton.isVisible();
         if (isVisible) {
-          buttonFound = true;
+          csvButtonFound = true;
           console.log('넓은 범위 검색으로 CSV 다운로드 버튼을 찾았습니다');
         }
       } catch {
@@ -947,7 +1023,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     }
     
     // 5차: 페이지 내용 분석으로 디버깅
-    if (!buttonFound) {
+    if (!csvButtonFound) {
       console.log('모든 검색 방법이 실패했습니다. 페이지 내용을 분석합니다...');
       try {
         const pageContent = await page.content();
