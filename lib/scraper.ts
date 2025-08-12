@@ -857,25 +857,27 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     console.log('현재 페이지 URL:', await page.url());
     console.log('현재 페이지 제목:', await page.title());
     
-    // 페이지 내용 확인 (HTML 일부만 출력)
+    // 페이지 내용을 중간 부분부터 확인 (본문 부분)
     const loginPageContent = await page.content();
-    const contentPreview = loginPageContent.substring(0, 2000); // 처음 2000자만
-    console.log('페이지 내용 미리보기:', contentPreview);
+    const contentLength = loginPageContent.length;
+    const middleStart = Math.floor(contentLength / 2);
+    const contentPreview = loginPageContent.substring(middleStart, middleStart + 10000); // 중간부터 10000자
+    console.log('페이지 내용 미리보기 (중간 부분):', contentPreview);
     
-    // assets-buttons 요소 존재 여부 확인
-    if (loginPageContent.includes('assets-buttons')) {
-      console.log('assets-buttons 요소가 페이지에 존재합니다');
+    // 뒤쪽 부분도 확인
+    const endStart = Math.max(0, contentLength - 15000);
+    const endContent = loginPageContent.substring(endStart);
+    console.log('페이지 내용 미리보기 (뒤쪽 부분):', endContent);
+    
+    // 특정 텍스트 검색으로 페이지 상태 파악
+    if (loginPageContent.includes('ログイン')) {
+      console.log('로그인 관련 텍스트가 발견되었습니다. 아직 로그인되지 않았을 수 있습니다.');
+    } else if (loginPageContent.includes('ログアウト')) {
+      console.log('로그아웃 링크가 발견되었습니다. 로그인 완료로 판단합니다.');
+    } else if (loginPageContent.includes('My資産') || loginPageContent.includes('ポートフォリオ')) {
+      console.log('자산 관련 링크가 발견되었습니다. 로그인 완료로 판단합니다.');
     } else {
-      console.log('assets-buttons 요소가 페이지에 존재하지 않습니다');
-      
-      // 대신 다른 로그인 완료 표시 요소 확인
-      if (loginPageContent.includes('My資産')) {
-        console.log('My資産 링크가 발견되었습니다. 로그인 완료로 판단합니다.');
-      } else if (loginPageContent.includes('ポートフォリオ')) {
-        console.log('ポートフォリオ 링크가 발견되었습니다. 로그인 완료로 판단합니다.');
-      } else {
-        console.log('로그인 완료 표시 요소를 찾을 수 없습니다.');
-      }
+      console.log('페이지 상태를 파악할 수 없습니다.');
     }
     // 로그인 완료 확인 (assets-buttons 요소가 나타날 때까지)
     console.log('로그인 완료를 확인합니다...');
