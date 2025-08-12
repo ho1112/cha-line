@@ -9,13 +9,13 @@
     "vercel-build": "npx puppeteer browsers install chrome && next build",
     "start": "next start",
     "lint": "next lint",
-    "debug:scrape": "PWDEBUG=1 TS_NODE_PROJECT=tsconfig.debug.json AUTH_ONLY=1 ts-node --transpile-only run-debug.ts",
+
     "debug:scrape:full": "PWDEBUG=1 TS_NODE_PROJECT=tsconfig.debug.json AUTH_ONLY=0 ts-node --transpile-only run-debug.ts",
     "debug:scrape:send": "PWDEBUG=1 TS_NODE_PROJECT=tsconfig.debug.json AUTH_ONLY=0 SEND_LINE=1 ts-node --transpile-only run-debug.ts",
-    "test:flex:send": "TS_NODE_PROJECT=tsconfig.debug.json FLEX_JSON_PATH=./flex.json CSV_PATH=./sbi_0806.csv ts-node run-flex-send.ts",
+
     "debug:scrape:range": "PWDEBUG=1 TS_NODE_PROJECT=tsconfig.debug.json AUTH_ONLY=0 SCRAPE_FROM=2024/07/01 SCRAPE_TO=2024/07/31 SCRAPE_PERIOD=CUSTOM ts-node --transpile-only run-debug.ts",
-    "debug:login": "PWDEBUG=1 TS_NODE_PROJECT=tsconfig.debug.json ts-node --transpile-only run-debug-login.ts",
-    "test:csv": "TS_NODE_PROJECT=tsconfig.debug.json ts-node run-csv.ts",
+
+
     "test:csv:send": "TS_NODE_PROJECT=tsconfig.debug.json CSV_PATH=./sbi_0806.csv ts-node run-csv-send.ts",
     "test:line:prod": "curl -s -X POST https://cha-line.vercel.app/api/test-notification -H 'Content-Type: application/json' -d '{}'",
     "test:line:local": "curl -s -X POST http://localhost:3000/api/test-notification -H 'Content-Type: application/json' -d '{}'"
@@ -26,6 +26,7 @@
     "googleapis": "^154.1.0",
     "iconv-lite": "^0.6.3",
     "next": "^15.4.5",
+    "playwright": "^1.54.2",
     "puppeteer": "^24.16.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"

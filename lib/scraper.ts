@@ -1,6 +1,6 @@
 // /lib/scraper.ts
 
-import puppeteer from 'puppeteer';
+import { chromium, Browser, BrowserContext, Page } from 'playwright';
 import { google } from 'googleapis';
 import * as fs from 'fs';
 import { parse } from 'csv-parse/sync';
@@ -32,20 +32,20 @@ export async function checkLoginPage(options?: { prefillCredentials?: boolean })
   prefilled?: boolean;
 }> {
   let browser: any = null;
-  const loginUrl = 'https://www.sbisec.co.jp/ETGate/?_ControlID=WPLETlgR001Control&_PageID=WPLETlgR001Rlgn50&_DataStoreID=DSWPLETlgR001Control&_ActionID=login&getFlg=on';
+  const loginUrl = 'https://www.sbisec.co.jp/ETGate';
   try {
     const isDebugMode = process.env.PWDEBUG === '1';
     const remoteWsEndpoint = process.env.BROWSER_WS_ENDPOINT;
     if (isDebugMode) {
       const localChromePath = process.env.LOCAL_CHROME_PATH;
       if (localChromePath) {
-        browser = await puppeteer.launch({ headless: false, executablePath: localChromePath });
+        browser = await chromium.launch({ headless: false, executablePath: localChromePath });
       } else {
         try {
-          browser = await puppeteer.launch({ headless: false });
+          browser = await chromium.launch({ headless: false });
         } catch (e) {
           // macOS 기본 경로로 폴백
-          browser = await puppeteer.launch({ headless: false, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
+          browser = await chromium.launch({ headless: false, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
         }
       }
     } else {
@@ -60,7 +60,7 @@ export async function checkLoginPage(options?: { prefillCredentials?: boolean })
     const requiredSelectors = [
       'input[name="user_id"]',
       'input[name="user_password"]',
-      'button[name="ACT_loginHome"]',
+      'button[name="ACT_login"]',
     ];
 
     const results: { [key: string]: boolean } = {};
@@ -92,7 +92,7 @@ export async function checkLoginPage(options?: { prefillCredentials?: boolean })
 }
 
 async function getAuthUrlFromGmail(options?: { sinceMs?: number; lastSeenMessageId?: string | null }): Promise<{ url: string; messageId: string } | null> {
-  console.log('Fetching Auth URL from Gmail...');
+  console.log('Gmail에서 인증 URL을 가져오는 중...');
   try {
     // 1. 환경 변수에서 OAuth 2.0 정보 가져오기
     const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN } = process.env;
@@ -112,7 +112,7 @@ async function getAuthUrlFromGmail(options?: { sinceMs?: number; lastSeenMessage
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
     // 4. SBI 증권 인증 URL 이메일 검색 (더 유연한 검색 조건)
-    console.log('Searching for SBI authentication emails...');
+    console.log('SBI 인증 이메일을 검색하는 중...');
     
     // 여러 검색 조건 시도 (더 광범위하게)
     const searchQueries = [
@@ -131,7 +131,7 @@ async function getAuthUrlFromGmail(options?: { sinceMs?: number; lastSeenMessage
     
     for (const query of searchQueries) {
       try {
-        console.log(`Trying search query: ${query}`);
+        console.log(`검색 쿼리 시도: ${query}`);
         listResponse = await gmail.users.messages.list({
           userId: 'me',
           q: query,
@@ -140,7 +140,7 @@ async function getAuthUrlFromGmail(options?: { sinceMs?: number; lastSeenMessage
         
         if (listResponse.data.messages && listResponse.data.messages.length > 0) {
           usedQuery = query;
-          console.log(`Found ${listResponse.data.messages.length} emails with query: ${query}`);
+          console.log(`쿼리로 ${listResponse.data.messages.length}개의 이메일을 찾았습니다: ${query}`);
           
           // 디버깅: 첫 번째 이메일의 제목 확인
           try {
@@ -153,26 +153,26 @@ async function getAuthUrlFromGmail(options?: { sinceMs?: number; lastSeenMessage
             const subject = firstEmail.data.payload?.headers?.find(h => h.name === 'Subject')?.value;
             const from = firstEmail.data.payload?.headers?.find(h => h.name === 'From')?.value;
             const date = firstEmail.data.payload?.headers?.find(h => h.name === 'Date')?.value;
-            console.log(`First email - Subject: ${subject}, From: ${from}, Date: ${date}`);
+            console.log(`첫 번째 이메일 - 제목: ${subject}, 보낸사람: ${from}, 날짜: ${date}`);
           } catch (e) {
-            console.log('Could not read first email metadata:', e);
+            console.log('첫 번째 이메일 메타데이터를 읽을 수 없습니다:', e);
           }
           
           break;
         }
       } catch (e) {
-        console.log(`Query failed: ${query}`, e);
+        console.log(`쿼리 실패: ${query}`, e);
         continue;
       }
     }
     
     if (!listResponse || !listResponse.data.messages || listResponse.data.messages.length === 0) {
-      console.log('No emails found with any search query.');
+      console.log('어떤 검색 쿼리로도 이메일을 찾을 수 없습니다.');
       return null;
     }
 
     if (!listResponse.data.messages || listResponse.data.messages.length === 0) {
-      console.log('No new auth URL email found.');
+      console.log('새로운 인증 URL 이메일을 찾을 수 없습니다.');
       return null;
     }
 
@@ -181,7 +181,7 @@ async function getAuthUrlFromGmail(options?: { sinceMs?: number; lastSeenMessage
     const lastSeen = options?.lastSeenMessageId ?? null;
     const skewMs = 1000; // 클럭 오차 보정
     
-    console.log(`Looking for emails after: ${new Date(sinceMs).toISOString()}`);
+    console.log(`이후 이메일을 찾는 중: ${new Date(sinceMs).toISOString()}`);
     
     let pickedId: string | null = null;
     let pickedPayload: any = null;
@@ -189,7 +189,7 @@ async function getAuthUrlFromGmail(options?: { sinceMs?: number; lastSeenMessage
     for (const m of listResponse.data.messages) {
       const id = m.id!;
       if (lastSeen && id === lastSeen) {
-        console.log(`Skipping already seen message: ${id}`);
+        console.log(`이미 본 메시지를 건너뜁니다: ${id}`);
         continue;
       }
       
@@ -198,20 +198,20 @@ async function getAuthUrlFromGmail(options?: { sinceMs?: number; lastSeenMessage
       const internalDateStr: any = (resp.data as any).internalDate; // epoch ms (string)
       const internalDate = internalDateStr ? Number(internalDateStr) : 0;
       
-      console.log(`Message ${id} date: ${new Date(internalDate).toISOString()}, sinceMs: ${new Date(sinceMs).toISOString()}`);
+      console.log(`메시지 ${id} 날짜: ${new Date(internalDate).toISOString()}, sinceMs: ${new Date(sinceMs).toISOString()}`);
       
       // sinceMs 조건을 완화: 5분 전부터의 이메일도 허용
       const timeWindow = sinceMs - (5 * 60 * 1000); // 5분 전
       if (payload && internalDate >= timeWindow) {
         pickedId = id;
         pickedPayload = payload;
-        console.log(`Selected message ${id} with date ${new Date(internalDate).toISOString()}`);
+        console.log(`선택된 메시지 ${id}, 날짜: ${new Date(internalDate).toISOString()}`);
         break;
       }
     }
     
     if (!pickedId || !pickedPayload) {
-      console.log('No matching auth URL email found within time window.');
+      console.log('시간 창 내에서 일치하는 인증 URL 이메일을 찾을 수 없습니다.');
       return null;
     }
     const messageId = pickedId;
@@ -275,13 +275,13 @@ async function getAuthUrlFromGmail(options?: { sinceMs?: number; lastSeenMessage
     if (!authUrl) {
       throw new Error('Could not find the auth URL in the email body.');
     }
-    console.log(`Fetched Auth URL: ${authUrl}`);
+    console.log(`가져온 인증 URL: ${authUrl}`);
     return { url: authUrl, messageId };
 
   } catch (error: any) {
-    console.error('Failed to get auth URL from Gmail:', error);
+    console.error('Gmail에서 인증 URL을 가져오는데 실패했습니다:', error);
     if (error.response) {
-      console.error('API Error Details:', error.response.data.error);
+      console.error('API 오류 세부사항:', error.response.data.error);
     }
     throw error;
   }
@@ -295,21 +295,21 @@ async function waitForAuthUrlFromGmail(options?: { timeoutMs?: number; pollInter
   let lastSeen: string | null = null;
   let attemptCount = 0;
   
-  console.log(`Waiting for auth URL from Gmail (timeout: ${timeoutMs}ms, poll: ${pollMs}ms)`);
+  console.log(`Gmail에서 인증 URL을 기다리는 중 (타임아웃: ${timeoutMs}ms, 폴링: ${pollMs}ms)`);
   
   while (Date.now() - start < timeoutMs) {
     attemptCount++;
-    console.log(`Gmail search attempt ${attemptCount}...`);
+    console.log(`Gmail 검색 시도 ${attemptCount}...`);
     
     const found = await getAuthUrlFromGmail({ sinceMs, lastSeenMessageId: lastSeen }).catch(() => null);
     if (found) return found;
     
     const elapsed = Date.now() - start;
-    console.log(`No auth URL found yet (elapsed: ${elapsed}ms, remaining: ${timeoutMs - elapsed}ms)`);
+    console.log(`아직 인증 URL을 찾지 못했습니다 (경과: ${elapsed}ms, 남은 시간: ${timeoutMs - elapsed}ms)`);
     
     await new Promise(res => setTimeout(res, pollMs));
   }
-  throw new Error(`Timed out waiting for auth URL from Gmail (>${timeoutMs}ms)`);
+  throw new Error(`Gmail에서 인증 URL을 기다리는 시간이 초과되었습니다 (>${timeoutMs}ms)`);
 }
 
 interface DividendResult {
@@ -319,32 +319,32 @@ interface DividendResult {
 
 export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrideDates?: { from?: string; to?: string } } = {}): Promise<DividendResult | null> {
   let browser: any = null;
-  console.log('Starting dividend scraping process...');
+  console.log('배당금 스크래핑 프로세스를 시작합니다...');
 
   try {
     const isDebugMode = process.env.PWDEBUG === '1';
     
     if (isDebugMode) {
-      console.log('Running in local debug mode. Launching system Chrome...');
+      console.log('로컬 디버그 모드로 실행 중입니다. 시스템 Chrome을 시작합니다...');
       const localChromePath = process.env.LOCAL_CHROME_PATH;
       if (localChromePath) {
-        browser = await puppeteer.launch({ headless: false, executablePath: localChromePath });
+        browser = await chromium.launch({ headless: false, executablePath: localChromePath });
       } else {
         try {
-          browser = await puppeteer.launch({ headless: false });
+          browser = await chromium.launch({ headless: false });
         } catch (e) {
-          browser = await puppeteer.launch({ headless: false, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
+          browser = await chromium.launch({ headless: false, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
         }
       }
     } else {
       if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
         // Running in Vercel/production mode. Launching puppeteer directly...
-        console.log('Vercel environment detected, using puppeteer directly...');
+        console.log('Vercel 환경이 감지되었습니다. puppeteer를 직접 사용합니다...');
         
         // Vercel에서 Chrome 경로 사용하지 않고 기본 puppeteer 사용
-        console.log('Using default puppeteer without executablePath');
+        console.log('executablePath 없이 기본 puppeteer를 사용합니다');
         
-        browser = await puppeteer.launch({
+        browser = await chromium.launch({
           headless: true,
           args: [
             '--no-sandbox',
@@ -358,8 +358,8 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
           ]
         });
       } else {
-        console.log('Running in Vercel/production mode. Launching puppeteer...');
-        browser = await puppeteer.launch({
+        console.log('Vercel/프로덕션 모드로 실행 중입니다. puppeteer를 시작합니다...');
+        browser = await chromium.launch({
           headless: true,
           args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-accelerated-2d-canvas', '--no-first-run', '--no-zygote', '--single-process', '--disable-gpu']
         });
@@ -371,18 +371,18 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     }
 
     // 컨텍스트 생성
-    console.log('Creating new browser context...');
+    console.log('새 브라우저 컨텍스트를 생성합니다...');
     const context = await browser.newContext({ 
       acceptDownloads: true,
       viewport: { width: 1280, height: 720 },
       userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     });
-    console.log('Browser context created successfully');
+    console.log('브라우저 컨텍스트가 성공적으로 생성되었습니다');
     const page = await context.newPage();
 
     // 1. SBI 증권 로그인 페이지로 이동
-    console.log('Navigating to SBI login page...');
-    await page.goto('https://www.sbisec.co.jp/ETGate/?_ControlID=WPLETlgR001Control&_PageID=WPLETlgR001Rlgn50&_DataStoreID=DSWPLETlgR001Control&_ActionID=login&getFlg=on');
+    console.log('SBI 증권 로그인 페이지로 이동합니다...');
+    await page.goto('https://www.sbisec.co.jp/ETGate');
 
     // 로그인 페이지 진입 완료
 
@@ -393,40 +393,40 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     // 로그인 버튼 클릭과 페이지 이동을 함께 기다립니다.
     await Promise.all([
         page.waitForNavigation({ waitUntil: 'domcontentloaded' }),
-        page.click('button[name="ACT_loginHome"]'),
+        page.click('button[name="ACT_login"]'),
     ]);
-    console.log('Logged in with ID/Password.');
+    console.log('ID/비밀번호로 로그인했습니다.');
 
     // 3. 현재 페이지 상태 확인 (이미 디바이스 인증 페이지에 있음)
-    console.log('Checking current page status...');
+    console.log('현재 페이지 상태를 확인합니다...');
     
     // 페이지 안정화 대기
     await page.waitForLoadState('domcontentloaded');
-    console.log('Page stabilized after login');
+    console.log('로그인 후 페이지가 안정화되었습니다');
     
     // 안전하게 페이지 정보 읽기
     try {
       const currentUrl = await page.url();
-      console.log('Current page URL:', currentUrl);
+      console.log('현재 페이지 URL:', currentUrl);
       
       const currentTitle = await page.title();
-      console.log('Current page title:', currentTitle);
+      console.log('현재 페이지 제목:', currentTitle);
     } catch (e) {
-      console.log('Could not read page info, but continuing...', e);
+      console.log('페이지 정보를 읽을 수 없지만 계속 진행합니다...', e);
     }
     
     // 4. 새로운 디바이스 인증 로직 (2025/8/9 이후 사양)
-    console.log('Starting new device authentication flow...');
+    console.log('새로운 디바이스 인증 플로우를 시작합니다...');
 
     // 현재 페이지 상태 확인 및 디버깅 (안전하게)
     try {
       const currentUrl = await page.url();
-      console.log('Current page URL:', currentUrl);
+      console.log('현재 페이지 URL:', currentUrl);
       
       const currentTitle = await page.title();
-      console.log('Current page title:', currentTitle);
+      console.log('현재 페이지 제목:', currentTitle);
     } catch (e) {
-      console.log('Could not read page info, but continuing...', e);
+      console.log('페이지 정보를 읽을 수 없지만 계속 진행합니다...', e);
     }
     
     // 페이지 로딩 완료 대기 (networkidle 대신 더 간단한 방법 사용)
@@ -441,32 +441,32 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
       // 1차: 텍스트 기반
       emailButton = page.locator('button:has-text("Eメールを送信する")');
       await emailButton.waitFor({ state: 'visible', timeout: 5000 });
-      console.log('Found email button by text');
+      console.log('텍스트로 이메일 버튼을 찾았습니다');
     } catch (e) {
-      console.log('Text-based button not found, trying alternative selectors...');
+      console.log('텍스트 기반 버튼을 찾을 수 없습니다. 대안 선택자를 시도합니다...');
       try {
         // 2차: aria-label 기반
         emailButton = page.locator('[aria-label*="メール"], [aria-label*="email"]');
         await emailButton.waitFor({ state: 'visible', timeout: 5000 });
-        console.log('Found email button by aria-label');
+        console.log('aria-label으로 이메일 버튼을 찾았습니다');
       } catch (e2) {
         try {
           // 3차: 일반적인 버튼 선택자
           emailButton = page.locator('button').filter({ hasText: /メール|email/i });
           await emailButton.waitFor({ state: 'visible', timeout: 5000 });
-          console.log('Found email button by generic selector');
+          console.log('일반 선택자로 이메일 버튼을 찾았습니다');
         } catch (e3) {
-          console.log('All button finding methods failed. Current page content:');
+          console.log('모든 버튼 찾기 방법이 실패했습니다. 현재 페이지 내용:');
           const pageContent = await page.content();
-          console.log('Page HTML preview:', pageContent.substring(0, 1000));
-          throw new Error('Could not find email button on the page');
+          console.log('페이지 HTML 미리보기:', pageContent.substring(0, 1000));
+          throw new Error('페이지에서 이메일 버튼을 찾을 수 없습니다');
         }
       }
     }
 
     // 버튼 클릭
     await emailButton.click();
-    console.log('Clicked "Send Email" button.');
+    console.log('이메일 전송 버튼을 클릭했습니다.');
 
     // 이메일에서 인증 URL을 기다림 (폴링 + 타임아웃)
     // 트리거 시각 이후에 도착한 메일만 대상
@@ -475,7 +475,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     const authUrl = found.url;
 
     // 4. 새 탭에서 인증 URL 열고 코드 입력
-    console.log(`Opening auth URL in a new tab: ${authUrl}`);
+    console.log(`새 탭에서 인증 URL을 엽니다: ${authUrl}`);
     
     // 새 페이지 생성
     let authPage = null;
@@ -485,7 +485,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     while (authTabAttempts < maxAuthTabAttempts && !authPage) {
       try {
         authTabAttempts++;
-        console.log(`Attempt ${authTabAttempts} to create auth tab...`);
+        console.log(`인증 탭 생성 시도 ${authTabAttempts}...`);
         
         // 컨텍스트 상태 확인 (타입 안전하게)
         try {
@@ -495,55 +495,55 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
           const testPage = await context.newPage();
           await testPage.close();
         } catch (contextError) {
-          console.log('Context test failed, cannot create new page:', contextError);
+          console.log('컨텍스트 테스트 실패, 새 페이지를 생성할 수 없습니다:', contextError);
           throw new Error('Browser context is not working properly');
         }
         
         // 새 페이지 생성
         authPage = await context.newPage();
-        console.log('Auth tab created successfully');
+        console.log('인증 탭이 성공적으로 생성되었습니다');
         
         // 인증 URL로 이동
-        console.log('Navigating to auth URL...');
+        console.log('인증 URL로 이동합니다...');
         await authPage.goto(authUrl, { 
           waitUntil: 'domcontentloaded', 
           timeout: 30000 
         });
-        console.log('Successfully navigated to auth URL');
+        console.log('인증 URL로 성공적으로 이동했습니다');
         break;
         
       } catch (e) {
-        console.log(`Attempt ${authTabAttempts} failed:`, e);
+        console.log(`시도 ${authTabAttempts} 실패:`, e);
         
         // 실패한 페이지 정리
         if (authPage) {
           try {
             await authPage.close();
           } catch (closeError) {
-            console.log('Could not close failed auth page:', closeError);
+            console.log('실패한 인증 페이지를 닫을 수 없습니다:', closeError);
           }
           authPage = null;
         }
         
         if (authTabAttempts >= maxAuthTabAttempts) {
-          throw new Error(`Failed to create and navigate auth tab after ${maxAuthTabAttempts} attempts`);
+          throw new Error(`${maxAuthTabAttempts}번 시도 후에도 인증 탭을 생성하고 이동할 수 없습니다`);
         }
         
         // 더 긴 대기 시간
-        console.log(`Waiting ${authTabAttempts * 1000}ms before retry...`);
+        console.log(`재시도 전 ${authTabAttempts * 1000}ms 대기...`);
         await new Promise(resolve => setTimeout(resolve, authTabAttempts * 1000));
       }
     }
     
     if (!authPage) {
-      throw new Error('Could not create auth tab');
+      throw new Error('인증 탭을 생성할 수 없습니다');
     }
 
     // 인증 페이지 도착
 
     // ★★★ 중요: 아래 선택자는 실제 페이지와 다를 수 있습니다. ★★★
     // 코드는 40초마다 변경되므로, 입력 직전에 최신 값을 다시 읽어온다
-    console.log('Reading auth code from main page...');
+    console.log('메인 페이지에서 인증 코드를 읽습니다...');
     
     let codeElement = null;
     let codeAttempts = 0;
@@ -552,43 +552,43 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     while (codeAttempts < maxCodeAttempts && !codeElement) {
       try {
         codeAttempts++;
-        console.log(`Attempt ${codeAttempts} to find code display element...`);
+        console.log(`코드 표시 요소 찾기 시도 ${codeAttempts}...`);
         
         // 메인 페이지 상태 확인
         try {
           await page.url(); // 페이지가 살아있는지 테스트
         } catch (pageError) {
-          console.log('Main page test failed:', pageError);
-          throw new Error('Main page was closed');
+          console.log('메인 페이지 테스트 실패:', pageError);
+          throw new Error('메인 페이지가 닫혔습니다');
         }
         
         // 코드 요소 찾기
         codeElement = await page.waitForSelector('#code-display', { timeout: 10000 });
-        console.log('Code display element found successfully');
+        console.log('코드 표시 요소를 성공적으로 찾았습니다');
         break;
       } catch (e) {
-        console.log(`Attempt ${codeAttempts} failed:`, e);
+        console.log(`시도 ${codeAttempts} 실패:`, e);
         if (codeAttempts >= maxCodeAttempts) {
-          throw new Error(`Failed to find code display element after ${maxCodeAttempts} attempts`);
+          throw new Error(`${maxCodeAttempts}번 시도 후에도 코드 표시 요소를 찾을 수 없습니다`);
         }
         // 점진적으로 대기 시간 증가
         const waitTime = Math.min(codeAttempts * 1000, 3000);
-        console.log(`Waiting ${waitTime}ms before retry...`);
+        console.log(`재시도 전 ${waitTime}ms 대기...`);
         await new Promise(resolve => setTimeout(resolve, waitTime));
       }
     }
     
     if (!codeElement) {
-      throw new Error('Could not find code display element');
+      throw new Error('코드 표시 요소를 찾을 수 없습니다');
     }
     
     // 코드 읽기
     const latestCode = (await codeElement.textContent())?.trim();
-    if (!latestCode) throw new Error('Could not read the latest auth code from the web page.');
-    console.log('Auth code read successfully:', latestCode);
+    if (!latestCode) throw new Error('웹 페이지에서 최신 인증 코드를 읽을 수 없습니다.');
+    console.log('인증 코드를 성공적으로 읽었습니다:', latestCode);
     
     // 인증 코드 입력 필드가 활성화될 때까지 기다리기 (더 안전하게)
-    console.log('Waiting for verification code input field to become enabled...');
+    console.log('인증 코드 입력 필드가 활성화될 때까지 기다립니다...');
     
     let inputField = null;
     let inputAttempts = 0;
@@ -597,45 +597,45 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     while (inputAttempts < maxInputAttempts && !inputField) {
       try {
         inputAttempts++;
-        console.log(`Attempt ${inputAttempts} to find enabled input field...`);
+        console.log(`활성화된 입력 필드 찾기 시도 ${inputAttempts}...`);
         
         // 인증 페이지 상태 확인
         try {
           await authPage.url(); // 페이지가 살아있는지 테스트
         } catch (pageError) {
-          console.log('Auth page test failed:', pageError);
-          throw new Error('Auth page was closed');
+          console.log('인증 페이지 테스트 실패:', pageError);
+          throw new Error('인증 페이지가 닫혔습니다');
         }
         
         // 입력 필드 찾기
         inputField = await authPage.waitForSelector('input[name="verifyCode"]:not([disabled])', { timeout: 10000 });
-        console.log('Verification code input field is now enabled');
+        console.log('인증 코드 입력 필드가 이제 활성화되었습니다');
         break;
       } catch (e) {
-        console.log(`Attempt ${inputAttempts} failed:`, e);
+        console.log(`시도 ${inputAttempts} 실패:`, e);
         if (inputAttempts >= maxInputAttempts) {
-          throw new Error(`Failed to find enabled input field after ${maxInputAttempts} attempts`);
+          throw new Error(`${maxInputAttempts}번 시도 후에도 활성화된 입력 필드를 찾을 수 없습니다`);
         }
         // 점진적으로 대기 시간 증가
         const waitTime = Math.min(inputAttempts * 1000, 3000);
-        console.log(`Waiting ${waitTime}ms before retry...`);
+        console.log(`재시도 전 ${waitTime}ms 대기...`);
         await new Promise(resolve => setTimeout(resolve, waitTime));
       }
     }
     
     if (!inputField) {
-      throw new Error('Could not find enabled input field');
+      throw new Error('활성화된 입력 필드를 찾을 수 없습니다');
     }
     
     // 인증 코드 입력 및 제출
     try {
       await authPage.fill('input[name="verifyCode"]', latestCode);
-      console.log('Auth code filled successfully');
+      console.log('인증 코드가 성공적으로 입력되었습니다');
       
       await authPage.click('button:has-text("認証する")');
-      console.log('Submitted auth code on the auth page.');
+      console.log('인증 페이지에서 인증 코드를 제출했습니다.');
     } catch (submitError) {
-      console.log('Failed to submit auth code, trying JavaScript method:', submitError);
+      console.log('인증 코드 제출 실패, JavaScript 방법을 시도합니다:', submitError);
       // 대안 방법: JavaScript로 직접 입력 및 제출
       await authPage.evaluate((code: string) => {
         const input = document.querySelector('input[name="verifyCode"]') as HTMLInputElement;
@@ -643,24 +643,24 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
         if (input) input.value = code;
         if (button) button.click();
       }, latestCode);
-      console.log('Auth code submitted via JavaScript');
+      console.log('JavaScript로 인증 코드를 제출했습니다');
     }
     
     // 탭 B는 열어둔 상태로 유지 (자동으로 닫힐 수 있음)
-    console.log('Auth code submitted, keeping auth tab open...');
+    console.log('인증 코드가 제출되었습니다. 인증 탭을 열어둡니다...');
 
     // 5. 원래 페이지로 돌아와서 최종 등록
-    console.log('Returned to the original page to finalize registration.');
+    console.log('원래 페이지로 돌아와서 최종 등록을 진행합니다.');
     
     // 메인 페이지 안정화 대기
-    console.log('Waiting for main page to stabilize...');
+    console.log('메인 페이지 안정화를 기다립니다...');
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(3000); // 추가 안정화 시간
     
-    console.log('Main page stabilized, proceeding with device registration...');
+    console.log('메인 페이지가 안정화되었습니다. 디바이스 등록을 진행합니다...');
     
     // 체크박스 체크 → 버튼 활성화 → 등록 버튼 클릭
-    console.log('Looking for device checkbox...');
+    console.log('디바이스 체크박스를 찾습니다...');
     
     // 체크박스 찾기
     let deviceCheckbox = null;
@@ -670,46 +670,46 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     while (checkboxAttempts < maxCheckboxAttempts && !deviceCheckbox) {
       try {
         checkboxAttempts++;
-        console.log(`Attempt ${checkboxAttempts} to find device checkbox...`);
+        console.log(`디바이스 체크박스 찾기 시도 ${checkboxAttempts}...`);
         
         // 페이지 상태 확인 (타입 안전하게)
         try {
           await page.url(); // 페이지가 살아있는지 테스트
         } catch (pageError) {
-          console.log('Page test failed, cannot proceed:', pageError);
-          throw new Error('Page was closed during device registration');
+          console.log('페이지 테스트 실패, 진행할 수 없습니다:', pageError);
+          throw new Error('디바이스 등록 중에 페이지가 닫혔습니다');
         }
         
         // 체크박스 찾기
         deviceCheckbox = await page.waitForSelector('#device-checkbox', { timeout: 10000 });
-        console.log('Device checkbox found successfully');
+        console.log('디바이스 체크박스를 성공적으로 찾았습니다');
         break;
       } catch (e) {
-        console.log(`Attempt ${checkboxAttempts} failed:`, e);
+        console.log(`시도 ${checkboxAttempts} 실패:`, e);
         if (checkboxAttempts >= maxCheckboxAttempts) {
-          throw new Error(`Failed to find device checkbox after ${maxCheckboxAttempts} attempts`);
+          throw new Error(`${maxCheckboxAttempts}번 시도 후에도 디바이스 체크박스를 찾을 수 없습니다`);
         }
         // 점진적으로 대기 시간 증가
         const waitTime = Math.min(checkboxAttempts * 1000, 5000);
-        console.log(`Waiting ${waitTime}ms before retry...`);
+        console.log(`재시도 전 ${waitTime}ms 대기...`);
         await new Promise(resolve => setTimeout(resolve, waitTime));
       }
     }
     
     if (!deviceCheckbox) {
-      throw new Error('Device checkbox not found');
+      throw new Error('디바이스 체크박스를 찾을 수 없습니다');
     }
     
     // 체크박스 체크 (안전하게)
     try {
       if (!(await page.isChecked('#device-checkbox'))) {
         await page.check('#device-checkbox');
-        console.log('Device checkbox checked successfully');
+        console.log('디바이스 체크박스가 성공적으로 체크되었습니다');
       } else {
-        console.log('Device checkbox was already checked');
+        console.log('디바이스 체크박스가 이미 체크되어 있습니다');
       }
     } catch (checkError) {
-      console.log('Failed to check checkbox, trying alternative method:', checkError);
+      console.log('체크박스 체크 실패, 대안 방법을 시도합니다:', checkError);
       // 대안 방법: JavaScript로 직접 체크
       await page.evaluate(() => {
         const checkbox = document.getElementById('device-checkbox') as HTMLInputElement;
@@ -718,15 +718,15 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
           checkbox.dispatchEvent(new Event('change', { bubbles: true }));
         }
       });
-      console.log('Device checkbox checked via JavaScript');
+      console.log('JavaScript로 디바이스 체크박스를 체크했습니다');
     }
     
     // 체크박스 체크 후 버튼 활성화 대기
-    console.log('Waiting for button to become active after checkbox...');
+    console.log('체크박스 체크 후 버튼이 활성화될 때까지 기다립니다...');
     await page.waitForTimeout(5000); // 5초 대기
 
     // 디바이스 등록 버튼을 안전하게 찾기
-    console.log('Looking for device registration button...');
+    console.log('디바이스 등록 버튼을 찾습니다...');
     let deviceAuthButton = null;
     let buttonAttempts = 0;
     const maxButtonAttempts = 10;
@@ -734,22 +734,22 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     while (buttonAttempts < maxButtonAttempts && !deviceAuthButton) {
       try {
         buttonAttempts++;
-        console.log(`Attempt ${buttonAttempts} to find device auth button...`);
+        console.log(`디바이스 인증 버튼 찾기 시도 ${buttonAttempts}...`);
         
         // 페이지 상태 확인
         if (page.isClosed()) {
-          console.log('Page was closed, cannot proceed');
-          throw new Error('Page was closed during device registration');
+          console.log('페이지가 닫혔습니다. 진행할 수 없습니다');
+          throw new Error('디바이스 등록 중에 페이지가 닫혔습니다');
         }
         
         // 더 긴 타임아웃으로 버튼 찾기
         deviceAuthButton = await page.waitForSelector('#device-auth-otp', { timeout: 10000 });
-        console.log('Device auth button found successfully');
+        console.log('디바이스 인증 버튼을 성공적으로 찾았습니다');
         break;
       } catch (e) {
-        console.log(`Attempt ${buttonAttempts} failed:`, e);
+        console.log(`시도 ${buttonAttempts} 실패:`, e);
         if (buttonAttempts >= maxButtonAttempts) {
-          throw new Error(`Failed to find device auth button after ${maxButtonAttempts} attempts`);
+          throw new Error(`${maxButtonAttempts}번 시도 후에도 디바이스 인증 버튼을 찾을 수 없습니다`);
         }
         // 더 긴 대기 시간
         await new Promise(resolve => setTimeout(resolve, 2000));
@@ -757,15 +757,15 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     }
     
     if (!deviceAuthButton) {
-      throw new Error('Device auth button not found');
+      throw new Error('디바이스 인증 버튼을 찾을 수 없습니다');
     }
     
     // 최종 등록 버튼 클릭
     await page.click('#device-auth-otp');
-    console.log('Device registration complete.');
+    console.log('디바이스 등록이 완료되었습니다.');
     
     // 디바이스 등록 완료 후 안정화 대기
-    console.log('Waiting for device registration to complete...');
+    console.log('디바이스 등록 완료를 기다립니다...');
     
     // 페이지 상태 확인 (안전하게)
     let currentUrl = '';
@@ -775,30 +775,30 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     while (attempts < maxAttempts) {
       try {
         attempts++;
-        console.log(`Attempt ${attempts} to check page status...`);
+        console.log(`페이지 상태 확인 시도 ${attempts}...`);
         
         // 페이지가 닫혔는지 확인
         if (page.isClosed()) {
-          console.log('Page was closed, cannot proceed');
-          throw new Error('Page was closed during device registration');
+          console.log('페이지가 닫혔습니다. 진행할 수 없습니다');
+          throw new Error('디바이스 등록 중에 페이지가 닫혔습니다');
         }
         
         currentUrl = await page.url();
-        console.log(`Current URL after device registration (attempt ${attempts}):`, currentUrl);
+                  console.log(`디바이스 등록 후 현재 URL (시도 ${attempts}):`, currentUrl);
         
-        // 메인페이지로 리다이렉트되었는지 확인
-        if (currentUrl.includes('sbisec.co.jp') && !currentUrl.includes('deviceAuthentication')) {
-          console.log('Successfully redirected to main page');
-          break;
-        } else {
-          console.log('Still on device authentication page, waiting...');
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
+                  // 메인페이지로 리다이렉트되었는지 확인
+          if (currentUrl.includes('sbisec.co.jp') && !currentUrl.includes('deviceAuthentication')) {
+            console.log('메인 페이지로 성공적으로 리다이렉트되었습니다');
+            break;
+          } else {
+            console.log('아직 디바이스 인증 페이지에 있습니다. 기다립니다...');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
         
       } catch (e) {
-        console.log(`Attempt ${attempts} failed:`, e);
+        console.log(`시도 ${attempts} 실패:`, e);
         if (attempts >= maxAttempts) {
-          console.log('Max attempts reached, continuing anyway...');
+          console.log('최대 시도 횟수에 도달했습니다. 계속 진행합니다...');
           break;
         }
         await new Promise(resolve => setTimeout(resolve, 1000));
@@ -806,7 +806,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     }
 
     if (options.debugAuthOnly) {
-      console.log('[DEBUG] Auth-only mode enabled, skipping CSV download.');
+      console.log('[DEBUG] 인증 전용 모드가 활성화되었습니다. CSV 다운로드를 건너뜁니다.');
       return {
         text: '장치 인증까지 완료(디버그 모드).',
         source: 'SBI Securities (AuthOnly)'
@@ -814,7 +814,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     }
 
     // 4. 배당금 이력 페이지로 이동 (항상 날짜 파라미터만 사용)
-    console.log('Generating dynamic URL for dividend history...');
+    console.log('배당금 이력용 동적 URL을 생성합니다...');
 
     // 요청 바디 우선, 다음 ENV, 없으면 JST 오늘
     const bodyFrom = options.overrideDates?.from; // yyyy/mm/dd
@@ -839,7 +839,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     // 항상 날짜 파라미터만 포함
     const dividendUrl = `${baseUrl}?dispositionDateFrom=${dispositionDateFrom}&dispositionDateTo=${dispositionDateTo}`;
 
-    console.log(`Navigating to: ${dividendUrl}`);
+    console.log(`다음으로 이동합니다: ${dividendUrl}`);
     
     // 안전한 페이지 이동
     let navigationSuccess = false;
@@ -849,12 +849,12 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     while (navAttempts < maxNavAttempts && !navigationSuccess) {
       try {
         navAttempts++;
-        console.log(`Attempt ${navAttempts} to navigate to dividend page...`);
+        console.log(`배당금 페이지로 이동 시도 ${navAttempts}...`);
         
         // 페이지 상태 확인
         if (page.isClosed()) {
-          console.log('Page was closed, cannot proceed');
-          throw new Error('Page was closed during dividend page navigation');
+          console.log('페이지가 닫혔습니다. 진행할 수 없습니다');
+          throw new Error('배당금 페이지 이동 중에 페이지가 닫혔습니다');
         }
         
         // 더 안전한 페이지 이동
@@ -862,14 +862,14 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
           waitUntil: 'domcontentloaded', 
           timeout: 60000 
         });
-        console.log('Successfully navigated to dividend page');
+        console.log('배당금 페이지로 성공적으로 이동했습니다');
         navigationSuccess = true;
         break;
         
       } catch (e) {
-        console.log(`Attempt ${navAttempts} failed:`, e);
+        console.log(`시도 ${navAttempts} 실패:`, e);
         if (navAttempts >= maxNavAttempts) {
-          throw new Error(`Failed to navigate to dividend page after ${maxNavAttempts} attempts`);
+          throw new Error(`${maxNavAttempts}번 시도 후에도 배당금 페이지로 이동할 수 없습니다`);
         }
         
         // 더 긴 대기 시간
@@ -878,14 +878,14 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     }
     
     if (!navigationSuccess) {
-      throw new Error('Could not navigate to dividend page');
+      throw new Error('배당금 페이지로 이동할 수 없습니다');
     }
 
     // 5. 최신 배당금 정보 추출 (CSV 다운로드 방식)
-    console.log('Scraping dividend information via CSV download...');
+    console.log('CSV 다운로드 방식으로 배당금 정보를 스크래핑합니다...');
 
     // CSV 다운로드 버튼을 즉시 찾고 클릭 (waitFor 없이)
-    console.log('Looking for CSV download button...');
+    console.log('CSV 다운로드 버튼을 찾습니다...');
     
     let downloadButton = page.getByRole('button', { name: /CSVダウンロード/ });
     let buttonFound = false;
@@ -895,31 +895,31 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
       const isVisible = await downloadButton.isVisible();
       if (isVisible) {
         buttonFound = true;
-        console.log('CSV download button found by role');
+        console.log('역할로 CSV 다운로드 버튼을 찾았습니다');
       }
-    } catch {
-      console.log('Role-based button not found, trying fallback selector...');
-    }
+          } catch {
+        console.log('역할 기반 버튼을 찾을 수 없습니다. 폴백 선택자를 시도합니다...');
+      }
     
-    if (!buttonFound) {
-      try {
-        // 폴백 셀렉터로 시도
-        downloadButton = page.locator('button.text-xs.link-light:has-text("CSVダウンロード")');
-        const isVisible = await downloadButton.isVisible();
-        if (isVisible) {
-          buttonFound = true;
-          console.log('CSV download button found by fallback selector');
+          if (!buttonFound) {
+        try {
+          // 폴백 셀렉터로 시도
+          downloadButton = page.locator('button.text-xs.link-light:has-text("CSVダウンロード")');
+          const isVisible = await downloadButton.isVisible();
+          if (isVisible) {
+            buttonFound = true;
+            console.log('폴백 선택자로 CSV 다운로드 버튼을 찾았습니다');
+          }
+        } catch {
+          console.log('폴백 선택자도 실패했습니다');
         }
-      } catch {
-        console.log('Fallback selector also failed');
       }
-    }
     
     if (!buttonFound) {
-      throw new Error('CSV download button not found');
+      throw new Error('CSV 다운로드 버튼을 찾을 수 없습니다');
     }
     
-    console.log('CSV download button found, proceeding with download...');
+    console.log('CSV 다운로드 버튼을 찾았습니다. 다운로드를 진행합니다...');
 
     const [download] = await Promise.all([
       page.waitForEvent('download'),
@@ -929,9 +929,9 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     // 다운로드된 파일의 임시 경로를 가져옵니다.
     const tempFilePath = await download.path();
     if (!tempFilePath) {
-        throw new Error('Failed to get temporary file path for download.');
+        throw new Error('다운로드용 임시 파일 경로를 가져올 수 없습니다.');
     }
-    console.log(`File downloaded to temporary path: ${tempFilePath}`);
+    console.log(`파일이 임시 경로에 다운로드되었습니다: ${tempFilePath}`);
 
     // CSV 파일을 Shift_JIS 인코딩으로 읽고 파싱합니다.
     const fileBuffer = fs.readFileSync(tempFilePath);
@@ -941,10 +941,10 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
 
     // 임시 파일을 삭제합니다.
     fs.unlinkSync(tempFilePath);
-    console.log('Temporary file deleted.');
+    console.log('임시 파일이 삭제되었습니다.');
 
     if (records.length === 0) {
-        console.log('CSV file was empty. No new dividend found.');
+        console.log('CSV 파일이 비어있습니다. 새로운 배당금이 없습니다.');
         return {
             text: '금일 신규 배당금 내역이 없습니다.',
             source: 'SBI Securities (CSV)'
@@ -952,23 +952,23 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     }
 
     // 파싱된 데이터를 기반으로 알림 메시지를 생성합니다.
-    console.log(`Scraping finished. Found ${records.length} items.`);
+    console.log(`스크래핑이 완료되었습니다. ${records.length}개의 항목을 찾았습니다.`);
 
     // 운영도 Flex로 전송
     const flex = buildDividendFlex(parsed);
     await sendFlexMessage(flex, '배당 알림');
     return {
-      text: 'Flex message sent',
+      text: 'Flex 메시지가 전송되었습니다',
       source: 'SBI Securities (CSV)'
     };
 
   } catch (error) {
-    console.error('Scraping failed:', error);
-    throw new Error('Failed to scrape dividend information.');
+    console.error('스크래핑 실패:', error);
+    throw new Error('배당금 정보 스크래핑에 실패했습니다.');
   } finally {
     if (browser) {
       await browser.close();
-      console.log('Browser closed.');
+      console.log('브라우저가 닫혔습니다.');
     }
   }
 }
