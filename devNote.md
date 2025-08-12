@@ -808,3 +808,110 @@ const browser = await puppeteer.launch({
 - **로컬과 클라우드 환경의 차이**: Inspector 모드 vs Headless 모드
 - **SBI 증권의 봇 탐지 수준**: 일반적인 stealth 기법으로는 우회 어려움
 - **단계별 접근의 중요성**: 한 번에 모든 문제를 해결하려 하지 말 것
+
+---
+
+12. 열두번째 (GCP VM 인스턴스로 아키텍처 전환 및 Express 서버 구현)
+
+### **아키텍처 전환 배경**
+- **기존 문제**: Vercel, Render 등 클라우드 플랫폼에서 브라우저 자동화의 근본적 한계
+- **새로운 접근**: GCP VM 인스턴스에서 실제 GUI 환경으로 브라우저 실행
+- **핵심 아이디어**: Inspector 모드와 유사한 가시적 브라우저 환경으로 안정성 확보
+
+### **무엇을 했는가?**
+
+#### **1. 프로젝트 구조 변경**
+- **Next.js API 라우트 → Express 서버**: `app/api/*/route.ts` → `server.ts`
+- **독립 실행 가능한 서버**: GCP VM에서 직접 실행, Vercel 불필요
+- **새로운 파일들**:
+  - `server.ts`: Express 서버 메인 파일
+  - `run-server.ts`: 서버 실행 스크립트
+  - `tsconfig.server.json`: 서버용 TypeScript 설정
+
+#### **2. Express 서버 구현**
+- **엔드포인트**:
+  - `GET /health`: 헬스체크
+  - `POST /api/dividend-webhook`: 배당금 스크래핑 메인
+  - `POST /api/test-notification`: LINE 알림 테스트
+- **환경 변수**: `dotenv.config()`로 자동 로드
+- **포트**: 3001번 (Next.js와 충돌 방지)
+
+#### **3. Playwright 복귀**
+- **`puppeteer` → `playwright`**: 더 안정적인 브라우저 자동화
+- **Inspector 모드 지원**: `PWDEBUG=1` 환경 변수로 디버깅 가능
+- **타입 안전성**: TypeScript와 완벽 호환
+
+#### **4. GCP VM 배포 준비**
+- **`Code.gs` 업데이트**: 웹훅 URL을 GCP VM IP로 변경
+- **환경 변수**: `.env` 파일로 GCP 환경 설정
+- **PM2 설정**: 백그라운드 실행을 위한 프로세스 관리
+
+### **현재 상황 분석**
+
+#### **성공한 부분**
+- ✅ **Express 서버**: 정상 실행 및 API 엔드포인트 작동
+- ✅ **Playwright 복귀**: 로컬에서 정상 작동 확인
+- ✅ **GCP VM 연결**: PM2로 서버 성공적 실행
+- ✅ **Gmail API**: 인증 URL 정상 추출
+
+#### **해결되지 않은 부분**
+- ❌ **GCP VM에서 브라우저 실행**: Playwright 브라우저 바이너리 누락
+- ❌ **시스템 의존성**: Linux 라이브러리 부족
+- ❌ **브라우저 컨텍스트 안정성**: Gmail API 호출 후 컨텍스트 닫힘
+
+### **문제 해결 과정**
+
+#### **1. Playwright 브라우저 설치**
+- **문제**: `Executable doesn't exist at /home/carrien1112/.cache/ms-playwright/chromium_headless_shell-1181/chrome-linux/headless_shell`
+- **해결**: `npx playwright install chromium` 실행 필요
+
+#### **2. 시스템 의존성 설치**
+- **문제**: `Host system is missing dependencies to run browsers`
+- **해결**: `sudo npx playwright install-deps` 또는 `sudo apt-get install` 명령어 필요
+
+#### **3. 네트워크 타임아웃 증가**
+- **문제**: GCP 미국 리전에서 일본 SBI 증권 접속 시 30초 타임아웃 초과
+- **해결**: 모든 `page.goto` 타임아웃을 120초(2분)로 증가
+
+#### **4. 브라우저 컨텍스트 안정성**
+- **문제**: Gmail API 호출 후 `browserContext.newPage: Target page, context or browser has been closed`
+- **시도한 해결책**:
+  - 컨텍스트 상태 확인 및 재생성 로직 추가
+  - `page.url()` 테스트로 컨텍스트 상태 검증
+  - 브라우저 컨텍스트 완전 재생성
+- **결과**: 여전히 동일한 에러 발생
+
+### **핵심 교훈**
+
+#### **GCP VM 환경의 특성**
+- **가상 디스플레이 필요**: `xvfb-run`으로 GUI 환경 시뮬레이션
+- **시스템 의존성**: Playwright 실행을 위한 Linux 라이브러리 필요
+- **네트워크 지연**: 미국 리전에서 일본 사이트 접속 시 높은 지연
+
+#### **브라우저 컨텍스트 안정성의 한계**
+- **Gmail API 호출의 영향**: 외부 API 호출이 브라우저 컨텍스트에 부정적 영향
+- **헤드리스 모드의 불안정성**: Inspector 모드와 달리 컨텍스트 관리 어려움
+- **탭 생성 타이밍**: Gmail API 호출 직후 새 탭 생성 시점의 중요성
+
+### **다음 단계 제안**
+
+#### **1. xvfb-run 환경 구축 (우선순위: 높음)**
+- **가상 디스플레이**: `sudo apt install xvfb`
+- **PM2와 연동**: `pm2 start "xvfb-run -a npm run server:prod" --name "cha-line-bot"`
+- **Inspector 모드**: `PWDEBUG=1` 환경 변수 설정
+
+#### **2. 브라우저 컨텍스트 안정성 향상 (우선순위: 높음)**
+- **Gmail API 호출 후 대기**: 컨텍스트 안정화를 위한 지연 시간 추가
+- **컨텍스트 상태 검증**: 더 정확한 컨텍스트 상태 확인 방법 구현
+- **에러 복구 로직**: 컨텍스트 실패 시 자동 복구 메커니즘
+
+#### **3. 대안 접근 방식 고려 (우선순위: 중간)**
+- **Gmail API 호출 방식 변경**: 브라우저 컨텍스트와 독립적으로 실행
+- **단계별 실행**: Gmail API 호출과 브라우저 자동화를 순차적으로 분리
+- **세션 지속성**: 로그인 상태를 더 안정적으로 유지하는 방법 탐구
+
+### **참고 사항**
+- **GCP VM은 올바른 방향**: 클라우드 플랫폼의 한계를 우회할 수 있는 유일한 방법
+- **xvfb-run의 중요성**: 헤드리스 환경에서 GUI 시뮬레이션의 핵심
+- **단계별 접근**: 한 번에 모든 문제를 해결하려 하지 말고, 단계별로 안정화
+- **Inspector 모드 활용**: 로컬에서 문제를 파악하고 GCP에서 동일한 환경 구현
