@@ -661,7 +661,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     }
     
     // 코드 읽기
-    const latestCode = (await codeElement.textContent())?.trim();
+    let latestCode = (await codeElement.textContent())?.trim();
     if (!latestCode) throw new Error('웹 페이지에서 최신 인증 코드를 읽을 수 없습니다.');
     console.log('인증 코드를 성공적으로 읽었습니다:', latestCode);
     
@@ -704,23 +704,83 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
       throw new Error('활성화된 입력 필드를 찾을 수 없습니다');
     }
     
-    // 인증 코드 입력 및 제출
-    try {
-      await authPage.fill('input[name="verifyCode"]', latestCode);
-      console.log('인증 코드가 성공적으로 입력되었습니다');
+    // 인증 코드 입력 및 제출 (반복 시도)
+    let authSuccess = false;
+    let authAttempts = 0;
+    const maxAuthAttempts = 3;
+    
+    while (authAttempts < maxAuthAttempts && !authSuccess) {
+      authAttempts++;
+      console.log(`인증 시도 ${authAttempts}/${maxAuthAttempts}...`);
       
-      await authPage.click('button:has-text("認証する")');
-      console.log('인증 페이지에서 인증 코드를 제출했습니다.');
-    } catch (submitError) {
-      console.log('인증 코드 제출 실패, JavaScript 방법을 시도합니다:', submitError);
-      // 대안 방법: JavaScript로 직접 입력 및 제출
-      await authPage.evaluate((code: string) => {
-        const input = document.querySelector('input[name="verifyCode"]') as HTMLInputElement;
-        const button = document.querySelector('button:has-text("認証する")') as HTMLButtonElement;
-        if (input) input.value = code;
-        if (button) button.click();
-      }, latestCode);
-      console.log('JavaScript로 인증 코드를 제출했습니다');
+      try {
+        // 1. 인증코드 입력
+        await authPage.fill('input[name="verifyCode"]', latestCode);
+        console.log('인증 코드가 성공적으로 입력되었습니다');
+        
+        // 2. 인증 버튼이 활성화되었는지 확인 (입력 완료 검증)
+        const verifyButton = authPage.locator('button:has-text("認証する")');
+        const isEnabled = await verifyButton.isEnabled();
+        
+        if (!isEnabled) {
+          console.log('인증 버튼이 아직 비활성화되어 있습니다. 입력이 완료되지 않았을 수 있습니다.');
+          await page.waitForTimeout(2000); // 2초 대기
+          continue;
+        }
+        
+        // 3. 인증 버튼 클릭
+        await verifyButton.click();
+        console.log('인증 페이지에서 인증 코드를 제출했습니다.');
+        
+        // 4. 성공 여부 확인 (에러 메시지 확인)
+        try {
+          const errorElement = await authPage.locator('#verifyError').isVisible();
+          if (!errorElement) {
+            console.log('인증이 성공했습니다!');
+            authSuccess = true;
+            break;
+          } else {
+            console.log('인증 실패. 에러 메시지가 표시되었습니다. 새로운 인증코드로 재시도합니다...');
+            
+            // 탭1에서 새로운 인증코드 읽기
+            const newCodeElement = await page.waitForSelector('#code-display', { timeout: 10000 });
+            const newCode = (await newCodeElement.textContent())?.trim();
+            if (newCode && newCode !== latestCode) {
+              console.log('새로운 인증코드를 발견했습니다:', newCode);
+              latestCode = newCode;
+            } else {
+              console.log('새로운 인증코드가 아직 나타나지 않았습니다. 대기합니다...');
+              await page.waitForTimeout(5000); // 5초 대기
+            }
+          }
+        } catch (errorCheckError) {
+          console.log('에러 메시지 확인 실패, 계속 진행합니다:', errorCheckError);
+        }
+        
+      } catch (submitError) {
+        console.log(`인증 시도 ${authAttempts} 실패:`, submitError);
+        
+        if (authAttempts >= maxAuthAttempts) {
+          console.log('최대 시도 횟수에 도달했습니다. JavaScript 방법을 시도합니다...');
+          // 대안 방법: JavaScript로 직접 입력 및 제출
+          try {
+            await authPage.evaluate((code: string) => {
+              const input = document.querySelector('input[name="verifyCode"]') as HTMLInputElement;
+              const button = document.querySelector('button:has-text("認証する")') as HTMLButtonElement;
+              if (input) input.value = code;
+              if (button) button.click();
+            }, latestCode);
+            console.log('JavaScript로 인증 코드를 제출했습니다');
+            authSuccess = true;
+          } catch (jsError) {
+            console.log('JavaScript 방법도 실패했습니다:', jsError);
+          }
+        }
+      }
+    }
+    
+    if (!authSuccess) {
+      throw new Error(`${maxAuthAttempts}번 시도 후에도 인증에 실패했습니다`);
     }
     
     // 인증 완료 후 탭2를 닫고 탭1로 돌아가기
