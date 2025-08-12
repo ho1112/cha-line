@@ -985,6 +985,28 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     // CSV 다운로드 버튼을 찾습니다
     console.log('CSV 다운로드 버튼을 찾습니다...');
     
+    // 페이지 상태 디버깅
+    console.log('현재 페이지 URL:', await page.url());
+    console.log('현재 페이지 제목:', await page.title());
+    
+    // 페이지 내용 확인
+    const pageContent = await page.content();
+    if (pageContent.includes('dividends-summary')) {
+      console.log('dividends-summary 요소가 페이지에 존재합니다');
+    } else {
+      console.log('dividends-summary 요소가 페이지에 존재하지 않습니다');
+    }
+    
+    if (pageContent.includes('CSVダウンロード')) {
+      console.log('CSV 다운로드 텍스트가 페이지에 존재합니다');
+    } else {
+      console.log('CSV 다운로드 텍스트가 페이지에 존재하지 않습니다');
+    }
+    
+    // 스크린샷 저장 (디버깅용)
+    await page.screenshot({ path: '/tmp/dividend-page-debug.png', fullPage: true });
+    console.log('디버깅용 스크린샷을 저장했습니다: /tmp/dividend-page-debug.png');
+    
     // 배당금 데이터 테이블이 로딩되었는지 확인
     await page.waitForSelector('#dividends-summary .table', { timeout: 30000 });
     await page.waitForTimeout(2000); // 추가 안정화
