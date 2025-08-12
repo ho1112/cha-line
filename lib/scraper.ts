@@ -447,9 +447,9 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     await page.waitForLoadState('domcontentloaded');
     
     // 페이지 안정화 대기 (동적 콘텐츠 로딩을 위해)
-    await page.waitForLoadState('networkidle');  // 네트워크 활동 완료까지 대기
-    await page.waitForTimeout(5000);  // 추가 안정화 시간
-    console.log('페이지가 완전히 안정화되었습니다. 이메일 버튼을 찾습니다...');
+    await page.waitForLoadState('domcontentloaded');  // DOM 로딩 완료까지만 대기
+    await page.waitForTimeout(8000);  // 추가 안정화 시간 (8초로 증가)
+    console.log('페이지가 안정화되었습니다. 이메일 버튼을 찾습니다...');
 
     // "Eメールを送信する" 버튼 찾기 시도 (강화된 fallback 로직)
     let emailButton = null;
