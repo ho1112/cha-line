@@ -352,7 +352,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
         console.log('GCP VM 프로덕션 모드로 실행 중입니다. Playwright를 시작합니다...');
         
         browser = await chromium.launch({
-          headless: false,  // 기본적으로 Inspector 모드로 실행
+          headless: true,  // GCP VM에서는 헤드리스 모드로 실행
           args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -367,7 +367,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
       } else {
         console.log('로컬 개발 모드로 실행 중입니다. Playwright를 시작합니다...');
         browser = await chromium.launch({
-          headless: false,  // 기본적으로 Inspector 모드로 실행
+          headless: true,  // 로컬에서도 헤드리스 모드로 실행
           args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-accelerated-2d-canvas', '--no-first-run', '--no-zygote', '--single-process', '--disable-gpu']
         });
       }
@@ -393,7 +393,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
 
     // 1. SBI 증권 로그인 페이지로 이동
     console.log('SBI 증권 로그인 페이지로 이동합니다...');
-    await page.goto('https://site2.sbisec.co.jp/ETGate/', { 
+    await page.goto('https://site2.sbisec.co.jp/ETGate/', {
       timeout: 120000,  // 120초(2분)로 증가
       waitUntil: 'domcontentloaded'  // 더 빠른 로딩 조건
     });
