@@ -5,8 +5,8 @@
 // =================================================================
 
 // GCP VM에 배포된 웹훅 URL
-const PRODUCTION_WEBHOOK_URL = 'https://[GCP-VM-IP]:3000/api/dividend-webhook';
-const TEST_WEBHOOK_URL = 'https://[GCP-VM-IP]:3000/api/test-notification';
+const PRODUCTION_WEBHOOK_URL = 'http://34.127.69.45:3001/api/dividend-webhook';
+const TEST_WEBHOOK_URL = 'http://34.127.69.45:3001/api/test-notification';
 // GAS→서버(GCP VM) 인증용 시크릿
 const SECRET = PropertiesService.getScriptProperties().getProperty('GAS_SHARED_SECRET') || '';
 

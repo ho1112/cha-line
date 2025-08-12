@@ -2,11 +2,20 @@
 
 import { Client, Message } from '@line/bot-sdk';
 
-const lineClient = new Client({
-  channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN!,
-});
+let lineClient: Client | null = null;
 
-interface DividendData {
+function getLineClient(): Client {
+  if (!lineClient) {
+    const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+    if (!token) {
+      throw new Error('LINE_CHANNEL_ACCESS_TOKEN is not set');
+    }
+    lineClient = new Client({ channelAccessToken: token });
+  }
+  return lineClient;
+}
+
+export interface DividendData {
   text?: string;
   source?: string;
   type?: 'success' | 'error';
@@ -28,7 +37,7 @@ export async function sendLineMessage(dividendData: DividendData): Promise<void>
     };
     
     try {
-      await lineClient.pushMessage(userId, errorMessage);
+      await getLineClient().pushMessage(userId, errorMessage);
       console.log('Successfully sent error message to LINE.');
     } catch (error: any) {
       console.error('Failed to send error message to LINE:', error.originalError?.response?.data);
@@ -51,7 +60,7 @@ export async function sendLineMessage(dividendData: DividendData): Promise<void>
   };
 
   try {
-    await lineClient.pushMessage(userId, flexMessage as Message);
+    await getLineClient().pushMessage(userId, flexMessage as Message);
     console.log('Successfully sent dividend notification to LINE.');
   } catch (error: any) {
     console.error('Failed to send LINE message:', error.originalError?.response?.data);
@@ -72,7 +81,7 @@ export async function sendErrorMessage(errorMessage: string): Promise<void> {
   };
 
   try {
-    await lineClient.pushMessage(userId, message);
+    await getLineClient().pushMessage(userId, message);
     console.log('Successfully sent error message to LINE.');
   } catch (error: any) {
     console.error('Failed to send error message to LINE:', error.originalError?.response?.data);
@@ -92,7 +101,7 @@ export async function sendFlexMessage(contents: any, altText: string = '배당 �
       : { type: 'flex', altText, contents };
 
   try {
-    await lineClient.pushMessage(userId, flexMessage as Message);
+    await getLineClient().pushMessage(userId, flexMessage as Message);
     console.log('Successfully sent FLEX message to LINE.');
   } catch (error: any) {
     console.error('Failed to send FLEX message to LINE:', error.originalError?.response?.data || error);

@@ -2,6 +2,7 @@
   "name": "cha-line",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "dev:debug": "PWDEBUG=1 next dev",
@@ -14,11 +15,16 @@
     "debug:scrape:range": "PWDEBUG=1 TS_NODE_PROJECT=tsconfig.debug.json AUTH_ONLY=0 SCRAPE_FROM=2024/07/01 SCRAPE_TO=2024/07/31 SCRAPE_PERIOD=CUSTOM ts-node --transpile-only run-debug.ts",
     "test:csv:send": "TS_NODE_PROJECT=tsconfig.debug.json CSV_PATH=./sbi_0806.csv ts-node run-csv-send.ts",
     "test:line:prod": "curl -s -X POST https://cha-line.vercel.app/api/test-notification -H 'Content-Type: application/json' -d '{}'",
-    "test:line:local": "curl -s -X POST http://localhost:3000/api/test-notification -H 'Content-Type: application/json' -d '{}'"
+    "test:line:local": "curl -s -X POST http://localhost:3000/api/test-notification -H 'Content-Type: application/json' -d '{}'",
+    "server": "tsx server.ts",
+    "server:debug": "PWDEBUG=1 tsx server.ts",
+    "server:prod": "NODE_ENV=production tsx server.ts"
   },
   "dependencies": {
     "@line/bot-sdk": "^10.0.0",
+    "@types/express": "^5.0.3",
     "csv-parse": "^6.1.0",
+    "express": "^5.1.0",
     "googleapis": "^154.1.0",
     "iconv-lite": "^0.6.3",
     "next": "^15.4.5",
@@ -31,6 +37,7 @@
     "@types/react": "^19.1.9",
     "dotenv": "^17.2.1",
     "ts-node": "^10.9.2",
+    "tsx": "^4.20.4",
     "typescript": "^5.9.2"
   }
 }
