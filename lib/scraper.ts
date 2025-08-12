@@ -347,12 +347,9 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
         }
       }
     } else {
-      if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
-        // Running in Vercel/production mode. Launching Playwright directly...
-        console.log('Vercel 환경이 감지되었습니다. Playwright를 직접 사용합니다...');
-        
-        // Vercel에서 Chrome 경로 사용하지 않고 기본 Playwright 사용
-        console.log('executablePath 없이 기본 Playwright를 사용합니다');
+      if (process.env.NODE_ENV === 'production') {
+        // GCP VM 프로덕션 모드로 실행 중입니다. Playwright를 시작합니다...
+        console.log('GCP VM 프로덕션 모드로 실행 중입니다. Playwright를 시작합니다...');
         
         browser = await chromium.launch({
           headless: true,
@@ -368,7 +365,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
           ]
         });
       } else {
-        console.log('Vercel/프로덕션 모드로 실행 중입니다. Playwright를 시작합니다...');
+        console.log('로컬 개발 모드로 실행 중입니다. Playwright를 시작합니다...');
         browser = await chromium.launch({
           headless: true,
           args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-accelerated-2d-canvas', '--no-first-run', '--no-zygote', '--single-process', '--disable-gpu']
@@ -387,12 +384,19 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
       viewport: { width: 1280, height: 720 },
       userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     });
+    
+    // 페이지별 타임아웃 설정 (GCP 미국 리전 고려)
+    context.setDefaultTimeout(120000);  // 120초(2분)
+    context.setDefaultNavigationTimeout(120000);  // 120초(2분)
     console.log('브라우저 컨텍스트가 성공적으로 생성되었습니다');
     const page = await context.newPage();
 
     // 1. SBI 증권 로그인 페이지로 이동
     console.log('SBI 증권 로그인 페이지로 이동합니다...');
-    await page.goto('https://www.sbisec.co.jp/ETGate');
+    await page.goto('https://www.sbisec.co.jp/ETGate', { 
+      timeout: 120000,  // 120초(2분)로 증가
+      waitUntil: 'domcontentloaded'  // 더 빠른 로딩 조건
+    });
 
     // 로그인 페이지 진입 완료
 
@@ -504,7 +508,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
         console.log('인증 URL로 이동합니다...');
         await authPage.goto(authUrl, { 
           waitUntil: 'domcontentloaded', 
-          timeout: 30000 
+          timeout: 120000  // 120초(2분)로 증가
         });
         console.log('인증 URL로 성공적으로 이동했습니다');
         break;
@@ -858,7 +862,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
         // 더 안전한 페이지 이동
         await page.goto(dividendUrl, { 
           waitUntil: 'domcontentloaded', 
-          timeout: 60000 
+          timeout: 120000  // 120초(2분)로 증가
         });
         console.log('배당금 페이지로 성공적으로 이동했습니다');
         navigationSuccess = true;
