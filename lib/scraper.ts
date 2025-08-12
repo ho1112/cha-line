@@ -352,7 +352,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
         console.log('GCP VM 프로덕션 모드로 실행 중입니다. Playwright를 시작합니다...');
         
         browser = await chromium.launch({
-          headless: true,
+          headless: false,  // 기본적으로 Inspector 모드로 실행
           args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -367,7 +367,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
       } else {
         console.log('로컬 개발 모드로 실행 중입니다. Playwright를 시작합니다...');
         browser = await chromium.launch({
-          headless: true,
+          headless: false,  // 기본적으로 Inspector 모드로 실행
           args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-accelerated-2d-canvas', '--no-first-run', '--no-zygote', '--single-process', '--disable-gpu']
         });
       }
