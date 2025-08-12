@@ -1,6 +1,7 @@
 // /app/api/dividend-webhook/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
+import { scrapeDividend } from '@/lib/scraper';
 import { sendLineMessage } from '@/lib/notification';
 
 export const runtime = 'nodejs';
@@ -10,37 +11,30 @@ export async function POST(request: NextRequest) {
   try {
     console.log('Dividend webhook received');
     
-    // Render 스크래핑 서버에 작업 요청
-    const renderResponse = await fetch(process.env.RENDER_SCRAPER_URL!, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        action: 'scrape_dividend',
-        timestamp: new Date().toISOString()
-      })
-    });
-
-    if (!renderResponse.ok) {
-      throw new Error(`Render API error: ${renderResponse.status}`);
-    }
-
-    const scrapeResult = await renderResponse.json();
+    // 요청 바디에서 날짜 정보 추출
+    const body = await request.json();
+    const { from, to } = body;
     
-    if (scrapeResult.success) {
+    console.log(`Scraping dividend for period: ${from} ~ ${to}`);
+    
+    // 직접 scraper.ts를 호출하여 스크래핑 실행
+    const scrapeResult = await scrapeDividend({
+      overrideDates: from && to ? { from, to } : undefined
+    });
+    
+    if (scrapeResult) {
       // 스크래핑 성공 시 LINE 메시지 전송
-      await sendLineMessage(scrapeResult.data);
+      await sendLineMessage(scrapeResult);
       console.log('Dividend information sent to LINE successfully');
       
       return NextResponse.json({ 
         success: true, 
         message: 'Dividend information processed and sent to LINE',
-        data: scrapeResult.data
+        data: scrapeResult
       });
     } else {
       // 스크래핑 실패 시 에러 메시지 전송
-      const errorMessage = scrapeResult.error || 'Failed to scrape dividend information';
+      const errorMessage = 'Failed to scrape dividend information';
       await sendLineMessage({
         type: 'error',
         message: errorMessage

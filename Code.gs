@@ -4,10 +4,10 @@
 // 설정 (Configuration)
 // =================================================================
 
-// Vercel에 배포된 웹훅 URL
-const PRODUCTION_WEBHOOK_URL = 'https://cha-line.vercel.app/api/dividend-webhook';
-const TEST_WEBHOOK_URL = 'https://cha-line.vercel.app/api/test-notification';
-// GAS→서버(vercel) 인증용 시크릿
+// GCP VM에 배포된 웹훅 URL
+const PRODUCTION_WEBHOOK_URL = 'https://[GCP-VM-IP]:3000/api/dividend-webhook';
+const TEST_WEBHOOK_URL = 'https://[GCP-VM-IP]:3000/api/test-notification';
+// GAS→서버(GCP VM) 인증용 시크릿
 const SECRET = PropertiesService.getScriptProperties().getProperty('GAS_SHARED_SECRET') || '';
 
 
@@ -101,19 +101,16 @@ function isWorkingHoursJST() {
 // =================================================================
 
 /**
- * 테스트 함수: 테스트용 이메일을 검색하여 찾으면,
- * 스크래핑을 생략하는 테스트 웹훅을 호출합니다.
+ * 테스트 함수: 하드코딩된 날짜로 풀 플로우를 실행합니다.
+ * 테스트할 때마다 날짜를 수정해서 사용하세요.
  */
 function testSearch() {
-  console.log('[테스트] 풀 플로우 실행(로그인→CSV→Flex) - 기간: 오늘로부터 한 달 전 ~ 오늘');
+  // 테스트할 날짜 범위를 여기서 수정하세요
+  const from = '2025/08/01';  // 시작 날짜
+  const to = '2025/08/06';    // 종료 날짜
+  
+  console.log(`[테스트] 풀 플로우 실행(로그인→CSV→Flex) - 기간: ${from} ~ ${to}`);
   try {
-    const today = new Date();
-    const oneMonthAgo = new Date(today);
-    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-
-    const from = toYmdJst(oneMonthAgo);
-    const to = toYmdJst(today);
-
     const response = UrlFetchApp.fetch(PRODUCTION_WEBHOOK_URL, {
       method: 'post',
       contentType: 'application/json',
@@ -123,7 +120,32 @@ function testSearch() {
 
     if (response.getResponseCode() == 200) {
       console.log(`[테스트] 웹훅 호출 성공: ${response.getContentText()}`);
-      console.log('[테스트] Vercel 서버 로그와 LINE 메시지를 확인하세요.');
+      console.log('[테스트] GCP VM 서버 로그와 LINE 메시지를 확인하세요.');
+    } else {
+      console.error(`[테스트] 웹훅 호출 실패: ${response.getContentText()}`);
+    }
+  } catch (e) {
+    console.error(`[테스트] 에러 발생: ${e.toString()}`);
+  }
+}
+
+/**
+ * 오늘만 테스트하는 함수
+ */
+function testToday() {
+  const today = toYmdJst(new Date());
+  console.log(`[테스트] 오늘만 테스트 - 기간: ${today}`);
+  try {
+    const response = UrlFetchApp.fetch(PRODUCTION_WEBHOOK_URL, {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { 'x-gas-secret': SECRET },
+      payload: JSON.stringify({ source: 'Google Apps Script - Test (Today)', from: today, to: today })
+    });
+
+    if (response.getResponseCode() == 200) {
+      console.log(`[테스트] 웹훅 호출 성공: ${response.getContentText()}`);
+      console.log('[테스트] GCP VM 서버 로그와 LINE 메시지를 확인하세요.');
     } else {
       console.error(`[테스트] 웹훅 호출 실패: ${response.getContentText()}`);
     }
