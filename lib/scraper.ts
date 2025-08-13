@@ -1,5 +1,8 @@
 // /lib/scraper.ts
 
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+
 import { chromium, Browser, BrowserContext, Page } from 'playwright';
 import { google } from 'googleapis';
 import * as fs from 'fs';
