@@ -4,7 +4,7 @@ import { chromium, Browser, BrowserContext, Page } from 'playwright';
 import { google } from 'googleapis';
 import * as fs from 'fs';
 import { parse } from 'csv-parse/sync';
-import * as iconv from 'iconv-lite';
+const iconv = require('iconv-lite');
 import { parseDividendCsvText } from './csv';
 import * as path from 'path';
 import { buildDividendFlex } from './flex';
