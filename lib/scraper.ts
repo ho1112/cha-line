@@ -421,30 +421,8 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     await page.waitForLoadState('domcontentloaded');
     console.log('로그인 후 페이지가 안정화되었습니다');
     
-    // 안전하게 페이지 정보 읽기
-    try {
-      const currentUrl = await page.url();
-      console.log('현재 페이지 URL:', currentUrl);
-      
-      const currentTitle = await page.title();
-      console.log('현재 페이지 제목:', currentTitle);
-    } catch (e) {
-      console.log('페이지 정보를 읽을 수 없지만 계속 진행합니다...', e);
-    }
-    
     // 4. 새로운 디바이스 인증 로직 (2025/8/9 이후 사양)
     console.log('새로운 디바이스 인증 플로우를 시작합니다...');
-
-    // 현재 페이지 상태 확인 및 디버깅 (안전하게)
-    try {
-      const currentUrl = await page.url();
-      console.log('현재 페이지 URL:', currentUrl);
-      
-      const currentTitle = await page.title();
-      console.log('현재 페이지 제목:', currentTitle);
-    } catch (e) {
-      console.log('페이지 정보를 읽을 수 없지만 계속 진행합니다...', e);
-    }
     
     // 페이지 로딩 완료 대기 (networkidle 대신 더 간단한 방법 사용)
     await page.waitForLoadState('domcontentloaded');
@@ -537,25 +515,11 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
         if (emailButtonMatches) {
           console.log('페이지에서 메일 관련 텍스트 발견:', emailButtonMatches.slice(0, 5));
         }
-        
-        // 모든 버튼과 링크 찾기
-        const allButtons = await page.locator('button, a, [role="button"]').all();
-        console.log(`페이지에 총 ${allButtons.length}개의 버튼/링크가 있습니다`);
-        
-        for (let i = 0; i < Math.min(allButtons.length, 10); i++) {
-          try {
-            const text = await allButtons[i].textContent();
-            if (text && text.includes('メール')) {
-              console.log(`메일 관련 요소 발견 (${i}번째):`, text.trim());
-            }
-          } catch (e) {
-            // 개별 요소 텍스트 읽기 실패는 무시
-          }
-        }
       } catch (e) {
         console.log('페이지 내용 분석 중 오류:', e);
       }
       
+      console.log('이메일 버튼을 찾을 수 없습니다. 페이지 구조를 확인해주세요.');
       throw new Error('페이지에서 이메일 버튼을 찾을 수 없습니다');
     }
 
@@ -915,33 +879,8 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
     // 메인 페이지로 리다이렉트될 때까지 대기
     await page.waitForLoadState('domcontentloaded');
     
-    // 로그인 완료 확인 전에 페이지 상태 디버깅
-    console.log('로그인 완료 확인 전에 페이지 상태를 체크합니다...');
-    console.log('현재 페이지 URL:', await page.url());
-    console.log('현재 페이지 제목:', await page.title());
-    
-    // 페이지 내용을 중간 부분부터 확인 (본문 부분)
-    const loginPageContent = await page.content();
-    const contentLength = loginPageContent.length;
-    const middleStart = Math.floor(contentLength / 2);
-    const contentPreview = loginPageContent.substring(middleStart, middleStart + 10000); // 중간부터 10000자
-    console.log('페이지 내용 미리보기 (중간 부분):', contentPreview);
-    
-    // 뒤쪽 부분도 확인
-    const endStart = Math.max(0, contentLength - 15000);
-    const endContent = loginPageContent.substring(endStart);
-    console.log('페이지 내용 미리보기 (뒤쪽 부분):', endContent);
-    
-    // 특정 텍스트 검색으로 페이지 상태 파악
-    if (loginPageContent.includes('ログイン')) {
-      console.log('로그인 관련 텍스트가 발견되었습니다. 아직 로그인되지 않았을 수 있습니다.');
-    } else if (loginPageContent.includes('ログアウト')) {
-      console.log('로그아웃 링크가 발견되었습니다. 로그인 완료로 판단합니다.');
-    } else if (loginPageContent.includes('My資産') || loginPageContent.includes('ポートフォリオ')) {
-      console.log('자산 관련 링크가 발견되었습니다. 로그인 완료로 판단합니다.');
-    } else {
-      console.log('페이지 상태를 파악할 수 없습니다.');
-    }
+    // 로그인 완료 확인
+    console.log('로그인 완료를 확인합니다...');
     // 로그인 완료 확인 (assets-buttons 요소가 나타날 때까지)
     console.log('로그인 완료를 확인합니다...');
     try {
@@ -1011,14 +950,14 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
         console.log('배당금 페이지로 성공적으로 이동했습니다');
         
         // 배당금 페이지로 이동 후 URL 확인
-        let currentUrl = page.url();
+        let currentUrl = await page.url();
         if (!currentUrl.includes('dividends')) {
           console.log('배당금 페이지로 이동하지 못했습니다. 현재 URL:', currentUrl);
           console.log('다시 시도합니다...');
           
           // 다시 배당금 페이지로 이동
           await page.goto(dividendUrl, { waitUntil: 'domcontentloaded', timeout: 120000 });
-          currentUrl = page.url();
+          currentUrl = await page.url();
           
           if (!currentUrl.includes('dividends')) {
             throw new Error('배당금 페이지로 이동에 실패했습니다. 현재 URL: ' + currentUrl);
@@ -1067,24 +1006,6 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
 
     // CSV 다운로드 버튼을 찾습니다
     console.log('CSV 다운로드 버튼을 찾습니다...');
-    
-    // 페이지 상태 디버깅
-    console.log('현재 페이지 URL:', await page.url());
-    console.log('현재 페이지 제목:', await page.title());
-    
-    // 페이지 내용 확인
-    const pageContent = await page.content();
-    if (pageContent.includes('dividends-summary')) {
-      console.log('dividends-summary 요소가 페이지에 존재합니다');
-    } else {
-      console.log('dividends-summary 요소가 페이지에 존재하지 않습니다');
-    }
-    
-    if (pageContent.includes('CSVダウンロード')) {
-      console.log('CSV 다운로드 텍스트가 페이지에 존재합니다');
-    } else {
-      console.log('CSV 다운로드 텍스트가 페이지에 존재하지 않습니다');
-    }
     
     // 배당금 데이터 테이블이 로딩되었는지 확인
     await page.waitForSelector('#dividends-summary .table', { timeout: 30000 });
