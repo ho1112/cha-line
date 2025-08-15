@@ -87,12 +87,13 @@ function isWeekdayJST() {
 }
 
 /**
- * 현재 시간이 일본 기준 업무시간(09:00 ~ 18:00)인지 확인하는 헬퍼 함수입니다.
+ * 현재 시간이 일본 기준 업무시간(12:00 ~ 19:00)인지 확인하는 헬퍼 함수입니다.
+ * sbi메일 이력을 보니 보통 15~17시 사이가 많았다. 드물게 18시 이후도 있었기 때문에 12-19로 조정
  */
 function isWorkingHoursJST() {
   const now = new Date();
   const hours = now.getHours();
-  return hours >= 9 && hours < 18;
+  return hours >= 12 && hours < 19;
 }
 
 
