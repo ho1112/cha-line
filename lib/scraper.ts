@@ -671,6 +671,18 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
       throw new Error('활성화된 입력 필드를 찾을 수 없습니다');
     }
     
+    // 인증 코드 입력 전, 공지 팝업(karte) 닫기 시도
+    try {
+      const noticeClose = authPage.locator('a.karte-temp-close.karte-close, a.karte-close, .karte-close');
+      if (await noticeClose.isVisible()) {
+        await noticeClose.click();
+        await authPage.waitForTimeout(300);
+        console.log('공지 팝업을 닫았습니다.');
+      }
+    } catch (_) {
+      // 팝업이 없거나 이미 닫힌 경우 무시
+    }
+    
     // 인증 코드 입력 및 제출 (반복 시도)
     let authSuccess = false;
     let authAttempts = 0;
@@ -695,7 +707,17 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
           continue;
         }
         
-        // 3. 인증 버튼 클릭
+        // 3. 인증 버튼 클릭 전, 팝업 재확인 및 닫기
+        try {
+          const noticeClose = authPage.locator('a.karte-temp-close.karte-close, a.karte-close, .karte-close');
+          if (await noticeClose.isVisible()) {
+            await noticeClose.click();
+            await authPage.waitForTimeout(300);
+            console.log('공지 팝업을 닫았습니다(클릭 전).');
+          }
+        } catch (_) {}
+
+        // 인증 버튼 클릭
         await verifyButton.click();
         console.log('인증 페이지에서 인증 코드를 제출했습니다.');
         
@@ -726,6 +748,15 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
         
       } catch (submitError) {
         console.log(`인증 시도 ${authAttempts} 실패:`, submitError);
+        // 팝업으로 인해 클릭이 차단된 경우를 대비해 팝업 닫고 재시도
+        try {
+          const noticeClose = authPage.locator('a.karte-temp-close.karte-close, a.karte-close, .karte-close');
+          if (await noticeClose.isVisible()) {
+            await noticeClose.click();
+            await authPage.waitForTimeout(300);
+            console.log('공지 팝업을 닫고 인증을 재시도합니다.');
+          }
+        } catch (_) {}
         
         if (authAttempts >= maxAuthAttempts) {
           console.log('최대 시도 횟수에 도달했습니다. JavaScript 방법을 시도합니다...');
