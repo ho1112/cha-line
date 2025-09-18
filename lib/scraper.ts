@@ -681,6 +681,7 @@ export async function scrapeDividend(options: { debugAuthOnly?: boolean; overrid
       }
     } catch (_) {
       // 팝업이 없거나 이미 닫힌 경우 무시
+      console.log('공지 팝업을 못 찾았습니다.');
     }
     
     // 인증 코드 입력 및 제출 (반복 시도)
