@@ -10,5 +10,9 @@ reflashToken.json
 node_modules
 .next
 
+# csv
+sbi_*.csv
+
+devNote.md
 
 gcloud auth application-default login --client-id-file=client_secret_537438013107-v7j9gj6ophbb49hhu4qpeq4iqrksqgkv.apps.googleusercontent.com.json --scopes=https://www.googleapis.com/auth/gmail.readonly
