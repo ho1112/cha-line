@@ -24,6 +24,7 @@ SBI証券のWebサイトに自動ログインして配当金履歴を収集し�
 - **Node.js + Express.js**
 - **Playwright** (ブラウザ自動化)
 - **Gmail API** (メール処理)
+- **Google Apps Script** (Gmail監視 + Webhookトリガー)
 
 ### LINE Bot Integration
 - **@line/bot-sdk (v10.0.0)**
@@ -117,6 +118,7 @@ SBI증권 웹사이트에 자동으로 로그인하여 배당금 내역을 수�
 - **Node.js + Express.js**
 - **Playwright** (브라우저 자동화)
 - **Gmail API** (이메일 처리)
+- **Google Apps Script** (Gmail 감지 및 웹훅 트리거)
 
 ### LINE Bot Integration
 - **@line/bot-sdk (v10.0.0)**
